@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Trophy } from "lucide-react";
+import { LoginBackground } from "@/components/LoginBackground";
 import { useEffect } from "react";
 
 const schema = z.object({
@@ -42,8 +42,7 @@ export default function LoginPage() {
           setLocation("/dashboard");
         },
         onError: (err: unknown) => {
-          const message =
-            err instanceof Error ? err.message : "Credenciais inválidas";
+          const message = err instanceof Error ? err.message : "Credenciais inválidas";
           toast({ title: "Erro ao entrar", description: message, variant: "destructive" });
         },
       }
@@ -51,17 +50,48 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      {/* Animated hex background */}
+      <LoginBackground />
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-sm px-4">
+        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg">
-            <Trophy className="w-7 h-7 text-primary-foreground" />
+          <div className="relative mb-4">
+            {/* Gold glow ring behind logo */}
+            <div
+              className="absolute inset-0 rounded-full blur-2xl opacity-40"
+              style={{ background: "radial-gradient(circle, rgba(201,162,39,0.7) 0%, transparent 70%)", transform: "scale(1.4)" }}
+            />
+            <img
+              src="/logo-copa.png"
+              alt="FIFA World Cup"
+              className="relative w-28 h-auto drop-shadow-2xl"
+              style={{ filter: "drop-shadow(0 0 20px rgba(201,162,39,0.5))" }}
+            />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Bolão da Copa</h1>
-          <p className="text-sm text-muted-foreground mt-1">Entre para fazer seus palpites</p>
+          <h1
+            className="text-3xl font-black tracking-tight text-white"
+            style={{ textShadow: "0 0 24px rgba(201,162,39,0.5), 0 2px 4px rgba(0,0,0,0.8)" }}
+          >
+            Bolão da Copa
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "rgba(201,162,39,0.8)" }}>
+            FIFA World Cup 2026
+          </p>
         </div>
 
-        <div className="bg-card border border-card-border rounded-xl p-6 shadow-md">
+        {/* Card */}
+        <div
+          className="rounded-2xl p-6 border"
+          style={{
+            background: "rgba(10,11,15,0.80)",
+            backdropFilter: "blur(24px)",
+            borderColor: "rgba(201,162,39,0.18)",
+            boxShadow: "0 0 0 1px rgba(201,162,39,0.08), 0 24px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(201,162,39,0.12)",
+          }}
+        >
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -69,11 +99,12 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel className="text-white/70 text-xs font-semibold uppercase tracking-widest">Email</FormLabel>
                     <FormControl>
                       <Input
                         type="email"
                         placeholder="seu@email.com"
+                        className="bg-white/5 border-white/10 focus:border-primary/60 text-white placeholder:text-white/25 h-11"
                         {...field}
                         data-testid="input-email"
                       />
@@ -87,11 +118,12 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Senha</FormLabel>
+                    <FormLabel className="text-white/70 text-xs font-semibold uppercase tracking-widest">Senha</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
                         placeholder="••••••"
+                        className="bg-white/5 border-white/10 focus:border-primary/60 text-white placeholder:text-white/25 h-11"
                         {...field}
                         data-testid="input-password"
                       />
@@ -102,8 +134,15 @@ export default function LoginPage() {
               />
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full h-11 font-bold text-sm tracking-wide mt-2"
                 disabled={loginMutation.isPending}
+                style={{
+                  background: loginMutation.isPending
+                    ? "rgba(201,162,39,0.5)"
+                    : "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                  boxShadow: loginMutation.isPending ? "none" : "0 4px 16px rgba(201,162,39,0.35)",
+                  color: "#1a1200",
+                }}
                 data-testid="button-submit"
               >
                 {loginMutation.isPending ? "Entrando..." : "Entrar"}
@@ -111,13 +150,19 @@ export default function LoginPage() {
             </form>
           </Form>
 
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            Ainda não tem conta?{" "}
-            <Link href="/register" className="text-primary hover:underline font-medium">
-              Cadastre-se
-            </Link>
-          </p>
+          <div className="mt-5 pt-5 border-t border-white/8 text-center">
+            <p className="text-sm text-white/40">
+              Ainda não tem conta?{" "}
+              <Link href="/register" className="font-semibold hover:underline" style={{ color: "rgba(201,162,39,0.9)" }}>
+                Cadastre-se
+              </Link>
+            </p>
+          </div>
         </div>
+
+        <p className="text-center text-xs mt-6" style={{ color: "rgba(255,255,255,0.2)" }}>
+          © 2026 Bolão da Copa · Todos os direitos reservados
+        </p>
       </div>
     </div>
   );

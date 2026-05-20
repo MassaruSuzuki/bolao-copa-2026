@@ -38,18 +38,38 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-60 bg-sidebar border-r border-sidebar-border fixed top-0 left-0 h-full z-30">
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Trophy className="w-4 h-4 text-primary-foreground" />
+      <aside
+        className="hidden md:flex flex-col w-64 fixed top-0 left-0 h-full z-30 border-r"
+        style={{
+          background: "hsl(220,20%,5%)",
+          borderColor: "rgba(201,162,39,0.12)",
+        }}
+      >
+        {/* Brand */}
+        <div
+          className="flex items-center gap-3 px-5 py-4 border-b"
+          style={{ borderColor: "rgba(201,162,39,0.10)" }}
+        >
+          <div className="relative flex-shrink-0">
+            <div
+              className="absolute inset-0 blur-md opacity-50 rounded-full"
+              style={{ background: "rgba(201,162,39,0.4)" }}
+            />
+            <img
+              src="/logo-copa.png"
+              alt="Copa"
+              className="relative w-10 h-auto"
+              style={{ filter: "drop-shadow(0 0 8px rgba(201,162,39,0.6))" }}
+            />
           </div>
           <div>
-            <p className="font-bold text-sm text-foreground">Bolão da Copa</p>
-            <p className="text-xs text-muted-foreground">2026</p>
+            <p className="font-black text-sm text-white tracking-tight">Bolão da Copa</p>
+            <p className="text-xs font-medium" style={{ color: "rgba(201,162,39,0.7)" }}>FIFA World Cup 2026</p>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1" data-testid="nav-sidebar">
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-0.5" data-testid="nav-sidebar">
           {allNavItems.map(({ href, label, icon: Icon }) => {
             const active = location === href || location.startsWith(href + "/");
             return (
@@ -57,11 +77,15 @@ export function Layout({ children }: LayoutProps) {
                 <div
                   data-testid={`nav-item-${href.slice(1)}`}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer",
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer",
                     active
-                      ? "bg-primary/15 text-primary"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+                      ? "text-[#1a1200]"
+                      : "text-white/60 hover:text-white/90"
                   )}
+                  style={active ? {
+                    background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                    boxShadow: "0 2px 12px rgba(201,162,39,0.3)",
+                  } : {}}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   {label}
@@ -71,22 +95,30 @@ export function Layout({ children }: LayoutProps) {
           })}
         </nav>
 
-        <div className="px-3 py-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <span className="text-xs font-bold text-primary">
-                {user?.name?.slice(0, 2).toUpperCase()}
-              </span>
+        {/* User */}
+        <div
+          className="px-3 py-4 border-t"
+          style={{ borderColor: "rgba(201,162,39,0.10)" }}
+        >
+          <div className="flex items-center gap-3 px-3 py-2 mb-1 rounded-xl hover:bg-white/5 transition-colors">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
+              style={{
+                background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                color: "#1a1200",
+              }}
+            >
+              {user?.name?.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+              <p className="text-xs text-white/40 truncate">{user?.email}</p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start text-muted-foreground hover:text-foreground gap-2"
+            className="w-full justify-start text-white/40 hover:text-white/70 gap-2 mt-1"
             onClick={logout}
             data-testid="button-logout"
           >
@@ -97,30 +129,36 @@ export function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-sidebar border-b border-sidebar-border">
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-40 border-b"
+        style={{
+          background: "rgba(8,9,13,0.95)",
+          backdropFilter: "blur(12px)",
+          borderColor: "rgba(201,162,39,0.12)",
+        }}
+      >
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-              <Trophy className="w-3.5 h-3.5 text-primary-foreground" />
-            </div>
-            <span className="font-bold text-sm">Bolão da Copa</span>
+            <img src="/logo-copa.png" alt="Copa" className="w-7 h-auto" style={{ filter: "drop-shadow(0 0 6px rgba(201,162,39,0.5))" }} />
+            <span className="font-black text-sm text-white">Bolão da Copa</span>
           </div>
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)} data-testid="button-mobile-menu">
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
         </div>
         {mobileOpen && (
-          <div className="px-3 pb-3 space-y-1 border-t border-sidebar-border">
+          <div className="px-3 pb-3 space-y-0.5 border-t" style={{ borderColor: "rgba(201,162,39,0.10)" }}>
             {allNavItems.map(({ href, label, icon: Icon }) => {
               const active = location === href;
               return (
                 <Link key={href} href={href}>
                   <div
                     onClick={() => setMobileOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer",
-                      active ? "bg-primary/15 text-primary" : "text-foreground hover:bg-sidebar-accent"
-                    )}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-all"
+                    style={active ? {
+                      background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                      color: "#1a1200",
+                    } : { color: "rgba(255,255,255,0.7)" }}
                   >
                     <Icon className="w-4 h-4" />
                     {label}
@@ -128,7 +166,12 @@ export function Layout({ children }: LayoutProps) {
                 </Link>
               );
             })}
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={logout}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-white/40"
+              onClick={logout}
+            >
               <LogOut className="w-4 h-4" />
               Sair
             </Button>
@@ -137,8 +180,8 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 md:ml-60 min-h-screen">
-        <div className="pt-0 md:pt-0 mt-14 md:mt-0">
+      <main className="flex-1 md:ml-64 min-h-screen">
+        <div className="mt-14 md:mt-0">
           {children}
         </div>
       </main>

@@ -67,45 +67,45 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* DARK SPORTS THEME — used as default */
+/* FIFA GOLD — PREMIUM DARK THEME */
 :root {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(201,162,39, .20);
+  --badge-outline: rgba(201,162,39, .08);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --elevate-1: rgba(255,255,255, .03);
+  --elevate-2: rgba(255,255,255, .07);
 
-  --background: 222 28% 9%;
-  --foreground: 210 40% 96%;
-  --border: 217 20% 18%;
-  --card: 222 25% 12%;
-  --card-foreground: 210 40% 96%;
-  --card-border: 217 20% 18%;
-  --sidebar: 222 28% 7%;
-  --sidebar-foreground: 210 40% 96%;
-  --sidebar-border: 217 20% 15%;
-  --sidebar-primary: 142 71% 45%;
-  --sidebar-primary-foreground: 144 100% 5%;
-  --sidebar-accent: 222 25% 14%;
-  --sidebar-accent-foreground: 210 40% 96%;
-  --sidebar-ring: 142 71% 45%;
-  --popover: 222 25% 12%;
-  --popover-foreground: 210 40% 96%;
-  --popover-border: 217 20% 18%;
-  --primary: 142 71% 45%;
-  --primary-foreground: 144 100% 5%;
-  --secondary: 217 20% 18%;
-  --secondary-foreground: 210 40% 96%;
-  --muted: 217 20% 15%;
-  --muted-foreground: 215 20% 55%;
-  --accent: 142 71% 45%;
-  --accent-foreground: 144 100% 5%;
+  --background: 220 18% 7%;
+  --foreground: 45 30% 95%;
+  --border: 220 14% 14%;
+  --card: 220 16% 10%;
+  --card-foreground: 45 30% 95%;
+  --card-border: 220 14% 16%;
+  --sidebar: 220 20% 5%;
+  --sidebar-foreground: 45 30% 95%;
+  --sidebar-border: 220 14% 12%;
+  --sidebar-primary: 43 74% 47%;
+  --sidebar-primary-foreground: 40 100% 5%;
+  --sidebar-accent: 220 16% 11%;
+  --sidebar-accent-foreground: 45 30% 95%;
+  --sidebar-ring: 43 74% 47%;
+  --popover: 220 16% 10%;
+  --popover-foreground: 45 30% 95%;
+  --popover-border: 220 14% 16%;
+  --primary: 43 74% 47%;
+  --primary-foreground: 40 100% 5%;
+  --secondary: 220 14% 16%;
+  --secondary-foreground: 45 30% 95%;
+  --muted: 220 14% 13%;
+  --muted-foreground: 215 14% 50%;
+  --accent: 43 74% 47%;
+  --accent-foreground: 40 100% 5%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --input: 217 20% 22%;
-  --ring: 142 71% 45%;
-  --chart-1: 142 71% 45%;
-  --chart-2: 38 92% 50%;
+  --input: 220 14% 18%;
+  --ring: 43 74% 47%;
+  --chart-1: 43 74% 47%;
+  --chart-2: 142 60% 45%;
   --chart-3: 220 70% 60%;
   --chart-4: 280 65% 60%;
   --chart-5: 0 72% 51%;
@@ -115,16 +115,19 @@
   --app-font-mono: Menlo, monospace;
   --radius: .625rem;
 
-  --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0,0.4);
-  --shadow-xs: 0px 2px 4px 0px rgba(0,0,0,0.4);
-  --shadow-sm: 0px 2px 4px 0px rgba(0,0,0,0.4), 0px 1px 2px -1px rgba(0,0,0,0.4);
-  --shadow: 0px 4px 6px -1px rgba(0,0,0,0.5), 0px 2px 4px -1px rgba(0,0,0,0.3);
-  --shadow-md: 0px 6px 10px -2px rgba(0,0,0,0.6), 0px 2px 4px -1px rgba(0,0,0,0.4);
-  --shadow-lg: 0px 10px 15px -3px rgba(0,0,0,0.6), 0px 4px 6px -2px rgba(0,0,0,0.4);
-  --shadow-xl: 0px 20px 25px -5px rgba(0,0,0,0.7), 0px 10px 10px -5px rgba(0,0,0,0.4);
-  --shadow-2xl: 0px 25px 50px -12px rgba(0,0,0,0.9);
+  --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0,0.5);
+  --shadow-xs: 0px 2px 4px 0px rgba(0,0,0,0.5);
+  --shadow-sm: 0px 2px 8px 0px rgba(0,0,0,0.5), 0px 1px 2px -1px rgba(0,0,0,0.5);
+  --shadow: 0px 4px 12px -1px rgba(0,0,0,0.6), 0px 2px 6px -1px rgba(0,0,0,0.4);
+  --shadow-md: 0px 6px 16px -2px rgba(0,0,0,0.7), 0px 2px 6px -1px rgba(0,0,0,0.5);
+  --shadow-lg: 0px 12px 24px -3px rgba(0,0,0,0.7), 0px 4px 8px -2px rgba(0,0,0,0.5);
+  --shadow-xl: 0px 20px 32px -5px rgba(0,0,0,0.8), 0px 10px 12px -5px rgba(0,0,0,0.5);
+  --shadow-2xl: 0px 28px 56px -12px rgba(0,0,0,0.95);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
+
+  --gold-glow: 0 0 24px rgba(201,162,39,0.35), 0 0 48px rgba(201,162,39,0.15);
+  --gold-subtle: 0 0 12px rgba(201,162,39,0.2);
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
@@ -136,55 +139,58 @@
 }
 
 .dark {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(201,162,39, .20);
+  --badge-outline: rgba(201,162,39, .08);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --elevate-1: rgba(255,255,255, .03);
+  --elevate-2: rgba(255,255,255, .07);
 
-  --background: 222 28% 9%;
-  --foreground: 210 40% 96%;
-  --border: 217 20% 18%;
-  --card: 222 25% 12%;
-  --card-foreground: 210 40% 96%;
-  --card-border: 217 20% 18%;
-  --sidebar: 222 28% 7%;
-  --sidebar-foreground: 210 40% 96%;
-  --sidebar-border: 217 20% 15%;
-  --sidebar-primary: 142 71% 45%;
-  --sidebar-primary-foreground: 144 100% 5%;
-  --sidebar-accent: 222 25% 14%;
-  --sidebar-accent-foreground: 210 40% 96%;
-  --sidebar-ring: 142 71% 45%;
-  --popover: 222 25% 12%;
-  --popover-foreground: 210 40% 96%;
-  --popover-border: 217 20% 18%;
-  --primary: 142 71% 45%;
-  --primary-foreground: 144 100% 5%;
-  --secondary: 217 20% 18%;
-  --secondary-foreground: 210 40% 96%;
-  --muted: 217 20% 15%;
-  --muted-foreground: 215 20% 55%;
-  --accent: 142 71% 45%;
-  --accent-foreground: 144 100% 5%;
+  --background: 220 18% 7%;
+  --foreground: 45 30% 95%;
+  --border: 220 14% 14%;
+  --card: 220 16% 10%;
+  --card-foreground: 45 30% 95%;
+  --card-border: 220 14% 16%;
+  --sidebar: 220 20% 5%;
+  --sidebar-foreground: 45 30% 95%;
+  --sidebar-border: 220 14% 12%;
+  --sidebar-primary: 43 74% 47%;
+  --sidebar-primary-foreground: 40 100% 5%;
+  --sidebar-accent: 220 16% 11%;
+  --sidebar-accent-foreground: 45 30% 95%;
+  --sidebar-ring: 43 74% 47%;
+  --popover: 220 16% 10%;
+  --popover-foreground: 45 30% 95%;
+  --popover-border: 220 14% 16%;
+  --primary: 43 74% 47%;
+  --primary-foreground: 40 100% 5%;
+  --secondary: 220 14% 16%;
+  --secondary-foreground: 45 30% 95%;
+  --muted: 220 14% 13%;
+  --muted-foreground: 215 14% 50%;
+  --accent: 43 74% 47%;
+  --accent-foreground: 40 100% 5%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --input: 217 20% 22%;
-  --ring: 142 71% 45%;
-  --chart-1: 142 71% 45%;
-  --chart-2: 38 92% 50%;
+  --input: 220 14% 18%;
+  --ring: 43 74% 47%;
+  --chart-1: 43 74% 47%;
+  --chart-2: 142 60% 45%;
   --chart-3: 220 70% 60%;
   --chart-4: 280 65% 60%;
   --chart-5: 0 72% 51%;
 
-  --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0,0.4);
-  --shadow-xs: 0px 2px 4px 0px rgba(0,0,0,0.4);
-  --shadow-sm: 0px 2px 4px 0px rgba(0,0,0,0.4), 0px 1px 2px -1px rgba(0,0,0,0.4);
-  --shadow: 0px 4px 6px -1px rgba(0,0,0,0.5), 0px 2px 4px -1px rgba(0,0,0,0.3);
-  --shadow-md: 0px 6px 10px -2px rgba(0,0,0,0.6), 0px 2px 4px -1px rgba(0,0,0,0.4);
-  --shadow-lg: 0px 10px 15px -3px rgba(0,0,0,0.6), 0px 4px 6px -2px rgba(0,0,0,0.4);
-  --shadow-xl: 0px 20px 25px -5px rgba(0,0,0,0.7), 0px 10px 10px -5px rgba(0,0,0,0.4);
-  --shadow-2xl: 0px 25px 50px -12px rgba(0,0,0,0.9);
+  --shadow-2xs: 0px 2px 0px 0px rgba(0,0,0,0.5);
+  --shadow-xs: 0px 2px 4px 0px rgba(0,0,0,0.5);
+  --shadow-sm: 0px 2px 8px 0px rgba(0,0,0,0.5), 0px 1px 2px -1px rgba(0,0,0,0.5);
+  --shadow: 0px 4px 12px -1px rgba(0,0,0,0.6), 0px 2px 6px -1px rgba(0,0,0,0.4);
+  --shadow-md: 0px 6px 16px -2px rgba(0,0,0,0.7), 0px 2px 6px -1px rgba(0,0,0,0.5);
+  --shadow-lg: 0px 12px 24px -3px rgba(0,0,0,0.7), 0px 4px 8px -2px rgba(0,0,0,0.5);
+  --shadow-xl: 0px 20px 32px -5px rgba(0,0,0,0.8), 0px 10px 12px -5px rgba(0,0,0,0.5);
+  --shadow-2xl: 0px 28px 56px -12px rgba(0,0,0,0.95);
+
+  --gold-glow: 0 0 24px rgba(201,162,39,0.35), 0 0 48px rgba(201,162,39,0.15);
+  --gold-subtle: 0 0 12px rgba(201,162,39,0.2);
 }
 
 @layer base {
@@ -200,14 +206,15 @@
 }
 
 @layer utilities {
-  input[type="search"]::-webkit-search-cancel-button {
-    @apply hidden;
+  .gold-glow {
+    box-shadow: var(--gold-glow);
+  }
+  .gold-text-glow {
+    text-shadow: 0 0 20px rgba(201,162,39,0.6), 0 0 40px rgba(201,162,39,0.3);
   }
 
-  [contenteditable][data-placeholder]:empty::before {
-    content: attr(data-placeholder);
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
   }
 
   .no-default-hover-elevate {}
