@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Bolão da Copa API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: matches
+    description: Match operations
+  - name: predictions
+    description: Prediction operations
+  - name: ranking
+    description: Ranking operations
+  - name: dashboard
+    description: Dashboard operations
 paths:
   /healthz:
     get:
@@ -24,6 +34,240 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /matches:
+    get:
+      operationId: listMatches
+      tags: [matches]
+      summary: List all matches
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [upcoming, live, finished]
+      responses:
+        "200":
+          description: List of matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Match"
+    post:
+      operationId: createMatch
+      tags: [matches]
+      summary: Create a match (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchInput"
+      responses:
+        "201":
+          description: Match created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+        "403":
+          description: Forbidden
+
+  /matches/{id}:
+    get:
+      operationId: getMatch
+      tags: [matches]
+      summary: Get a match by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Match details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchWithPredictions"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateMatch
+      tags: [matches]
+      summary: Update a match (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchUpdate"
+      responses:
+        "200":
+          description: Match updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /matches/{id}/predictions:
+    get:
+      operationId: listMatchPredictions
+      tags: [predictions]
+      summary: Get all predictions for a match
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Predictions for the match
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PredictionWithUser"
+
+  /predictions:
+    post:
+      operationId: upsertPrediction
+      tags: [predictions]
+      summary: Create or update a prediction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PredictionInput"
+      responses:
+        "200":
+          description: Prediction saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prediction"
+        "400":
+          description: Deadline passed or invalid
+        "401":
+          description: Unauthorized
+
+  /predictions/my:
+    get:
+      operationId: listMyPredictions
+      tags: [predictions]
+      summary: Get current user's predictions for all matches
+      responses:
+        "200":
+          description: My predictions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Prediction"
+
+  /ranking:
+    get:
+      operationId: getRanking
+      tags: [ranking]
+      summary: Get full ranking with scores
+      responses:
+        "200":
+          description: Full ranking
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RankingEntry"
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get dashboard summary data
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +278,291 @@ components:
       required:
         - status
 
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - email
+        - isAdmin
+        - createdAt
+
+    RegisterInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 6
+      required:
+        - name
+        - email
+        - password
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    Match:
+      type: object
+      properties:
+        id:
+          type: integer
+        homeTeam:
+          type: string
+        awayTeam:
+          type: string
+        homeLogo:
+          type: ["string", "null"]
+        awayLogo:
+          type: ["string", "null"]
+        matchDate:
+          type: string
+        status:
+          type: string
+          enum: [upcoming, live, finished]
+        homeScore:
+          type: ["integer", "null"]
+        awayScore:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - homeTeam
+        - awayTeam
+        - matchDate
+        - status
+        - createdAt
+
+    MatchWithPredictions:
+      type: object
+      properties:
+        id:
+          type: integer
+        homeTeam:
+          type: string
+        awayTeam:
+          type: string
+        homeLogo:
+          type: ["string", "null"]
+        awayLogo:
+          type: ["string", "null"]
+        matchDate:
+          type: string
+        status:
+          type: string
+          enum: [upcoming, live, finished]
+        homeScore:
+          type: ["integer", "null"]
+        awayScore:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        predictions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PredictionWithUser"
+      required:
+        - id
+        - homeTeam
+        - awayTeam
+        - matchDate
+        - status
+        - createdAt
+        - predictions
+
+    MatchInput:
+      type: object
+      properties:
+        homeTeam:
+          type: string
+        awayTeam:
+          type: string
+        homeLogo:
+          type: string
+        awayLogo:
+          type: string
+        matchDate:
+          type: string
+      required:
+        - homeTeam
+        - awayTeam
+        - matchDate
+
+    MatchUpdate:
+      type: object
+      properties:
+        homeTeam:
+          type: string
+        awayTeam:
+          type: string
+        homeLogo:
+          type: string
+        awayLogo:
+          type: string
+        matchDate:
+          type: string
+        status:
+          type: string
+          enum: [upcoming, live, finished]
+        homeScore:
+          type: ["integer", "null"]
+        awayScore:
+          type: ["integer", "null"]
+
+    Prediction:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        matchId:
+          type: integer
+        homeGoals:
+          type: integer
+        awayGoals:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - userId
+        - matchId
+        - homeGoals
+        - awayGoals
+        - createdAt
+        - updatedAt
+
+    PredictionWithUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        matchId:
+          type: integer
+        homeGoals:
+          type: integer
+        awayGoals:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - id
+        - userId
+        - matchId
+        - homeGoals
+        - awayGoals
+        - createdAt
+        - updatedAt
+        - user
+
+    PredictionInput:
+      type: object
+      properties:
+        matchId:
+          type: integer
+        homeGoals:
+          type: integer
+          minimum: 0
+        awayGoals:
+          type: integer
+          minimum: 0
+      required:
+        - matchId
+        - homeGoals
+        - awayGoals
+
+    RankingEntry:
+      type: object
+      properties:
+        userId:
+          type: integer
+        name:
+          type: string
+        totalPoints:
+          type: integer
+        exactScores:
+          type: integer
+        correctResults:
+          type: integer
+        totalPredictions:
+          type: integer
+      required:
+        - userId
+        - name
+        - totalPoints
+        - exactScores
+        - correctResults
+        - totalPredictions
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalParticipants:
+          type: integer
+        upcomingMatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        liveMatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        topRanking:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingEntry"
+        totalMatches:
+          type: integer
+        finishedMatches:
+          type: integer
+      required:
+        - totalParticipants
+        - upcomingMatches
+        - liveMatches
+        - topRanking
+        - totalMatches
+        - finishedMatches

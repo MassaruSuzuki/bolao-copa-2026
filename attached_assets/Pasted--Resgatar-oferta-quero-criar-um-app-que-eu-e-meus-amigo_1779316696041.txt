@@ -1,0 +1,199 @@
+
+
+
+
+
+
+
+
+
+
+
+Resgatar oferta
+quero criar um app que eu e meus amigos possam fazer o login, e que possamos fazer um bolao porem a gente nao cria um bolao apenas definimos o resultado em que pode ser feito : ate uma hora antes do jogo ou antes, as apostas nao podem ser feitas ou alteradas durante o jogo, e que todos possam ver o jogo que ta acontecendo no momento e embaixo os palpites e os nomes de todos os participantes, por enquanto eu quero criar isso no replit, consegue criar um prompt para isso?
+
+Crie um aplicativo web responsivo chamado “Bolão da Copa” utilizando:
+
+- Frontend: React + TypeScript + Tailwind CSS
+- Backend: Node.js com Express
+- Banco de dados: PostgreSQL com Prisma ORM
+- Autenticação: Login e cadastro com JWT e senha criptografada com bcrypt
+- Deploy e desenvolvimento no Replit
+
+OBJETIVO DO APP
+O aplicativo deve permitir que eu e meus amigos façamos login e participemos de um bolão de futebol. Não haverá criação manual de bolões. O sistema já terá um bolão único padrão chamado “Bolão da Copa”.
+
+FUNCIONALIDADES PRINCIPAIS
+
+1. AUTENTICAÇÃO
+- Cadastro com:
+  - Nome
+  - Email
+  - Senha
+- Login com email e senha
+- Logout
+- Cada usuário deve ter seu perfil
+
+2. JOGOS
+- Tabela de jogos cadastrada no banco com:
+  - Time da casa
+  - Time visitante
+  - Data e hora do jogo
+  - Escudo dos times
+  - Status do jogo:
+    - Não iniciado
+    - Ao vivo
+    - Encerrado
+  - Placar real (quando disponível)
+
+3. PALPITES
+Cada usuário poderá dar um palpite para cada jogo:
+- Gols do time da casa
+- Gols do time visitante
+
+REGRAS:
+- O palpite pode ser criado ou alterado até 1 hora antes do início da partida.
+- Após esse prazo, o formulário deve ficar bloqueado.
+- Não é permitido apostar durante o jogo.
+- Não é permitido alterar palpites com o jogo em andamento ou encerrado.
+
+4. TELA DE JOGOS
+Ao acessar o sistema, mostrar uma lista de jogos em cards contendo:
+- Escudos dos times
+- Nome dos times
+- Data e hora
+- Status da partida
+- Botão para dar palpite (se permitido)
+- Placar real (se o jogo estiver ao vivo ou encerrado)
+
+5. DETALHE DO JOGO
+Ao clicar em um jogo, mostrar:
+- Informações do jogo
+- Status (Não iniciado / Ao vivo / Encerrado)
+- Placar real
+
+Abaixo, exibir uma tabela com:
+- Nome de todos os participantes
+- Palpite de cada um
+
+Exemplo:
+João — 2 x 1
+Maria — 1 x 1
+Pedro — 3 x 0
+
+Essa lista deve ser visível para todos os participantes.
+
+6. RANKING
+Criar uma página de classificação geral com pontuação.
+
+REGRAS DE PONTUAÇÃO:
+- Acertou o placar exato: 5 pontos
+- Acertou apenas o vencedor ou empate: 3 pontos
+- Errou tudo: 0 pontos
+
+Exibir:
+- Posição
+- Nome
+- Total de pontos
+
+7. DASHBOARD
+Página inicial com:
+- Próximos jogos
+- Jogos ao vivo
+- Ranking resumido
+- Quantidade de participantes
+
+8. ADMIN
+Criar um usuário administrador capaz de:
+- Cadastrar jogos
+- Editar jogos
+- Inserir placar real
+- Atualizar status do jogo
+
+9. DESIGN
+Interface moderna semelhante a aplicativos esportivos:
+- Tema escuro
+- Cards com cantos arredondados
+- Escudos dos times
+- Ranking com destaque para top 3
+- Layout responsivo para desktop e celular
+
+10. ESTRUTURA DO BANCO DE DADOS
+
+User
+- id
+- name
+- email
+- password
+- isAdmin
+- createdAt
+
+Match
+- id
+- homeTeam
+- awayTeam
+- homeLogo
+- awayLogo
+- matchDate
+- status
+- homeScore
+- awayScore
+- createdAt
+
+Prediction
+- id
+- userId
+- matchId
+- homeGoals
+- awayGoals
+- createdAt
+- updatedAt
+
+11. REGRAS DE NEGÓCIO
+- Cada usuário pode ter apenas um palpite por jogo.
+- O sistema deve impedir palpites após o prazo.
+- Todos os usuários logados podem visualizar os palpites dos demais.
+- O ranking deve ser recalculado automaticamente após atualização dos resultados.
+
+12. DADOS INICIAIS
+Criar alguns usuários de teste e alguns jogos de exemplo.
+
+13. PÁGINAS
+- /login
+- /register
+- /dashboard
+- /matches
+- /matches/:id
+- /ranking
+- /admin
+
+14. EXTRA
+- Utilizar React Query ou TanStack Query para buscar dados.
+- Utilizar Zod para validação.
+- Mostrar mensagens de sucesso e erro com toast.
+- Utilizar ícones com Lucide React.
+
+15. README
+Gerar um README com:
+- Como rodar no Replit
+- Variáveis de ambiente
+- Comandos Prisma
+- Usuário admin padrão
+
+VARIÁVEIS DE AMBIENTE
+DATABASE_URL=
+JWT_SECRET=
+PORT=3000
+
+USUÁRIO ADMIN PADRÃO
+Email: admin@bolao.com
+Senha: 123456
+
+ENTREGUE:
+- Projeto completo
+- Código organizado
+- Banco Prisma
+- Seed inicial
+- Interface funcional
+- README detalhado
+
