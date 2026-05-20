@@ -1,15 +1,14 @@
 import { useEffect, useRef } from "react";
 
-interface Particle {
+interface Ball {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  radius: number;
+  size: number;
   opacity: number;
-  opacityDir: number;
-  pulse: number;
-  pulseSpeed: number;
+  rotation: number;
+  rotSpeed: number;
 }
 
 interface MousePos {
@@ -17,26 +16,229 @@ interface MousePos {
   y: number;
 }
 
-const GOLD = "201,162,39";
-const WHITE = "255,255,255";
+function drawField(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  mx: number,
+  my: number
+) {
+  // --- Background: dark cinematic green ---
+  ctx.fillStyle = "#050c06";
+  ctx.fillRect(0, 0, w, h);
 
-function hexPath(cx: number, cy: number, r: number, ctx: CanvasRenderingContext2D) {
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 6;
-    const px = cx + r * Math.cos(angle);
-    const py = cy + r * Math.sin(angle);
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+  // Subtle mouse-reactive radial light over the field
+  if (mx > 0) {
+    const glow = ctx.createRadialGradient(mx, my, 0, mx, my, 320);
+    glow.addColorStop(0, "rgba(255,255,220,0.045)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
   }
-  ctx.closePath();
+
+  // Field dimensions (centered, proportional)
+  const fieldW = Math.min(w * 0.88, 900);
+  const fieldH = fieldW * 0.63;
+  const fx = (w - fieldW) / 2;
+  const fy = (h - fieldH) / 2;
+
+  // --- Grass stripes ---
+  const stripeCount = 14;
+  const stripeW = fieldW / stripeCount;
+  for (let i = 0; i < stripeCount; i++) {
+    ctx.fillStyle = i % 2 === 0 ? "rgba(15,48,20,0.92)" : "rgba(18,56,24,0.92)";
+    ctx.fillRect(fx + i * stripeW, fy, stripeW, fieldH);
+  }
+
+  // --- Field border glow ---
+  ctx.save();
+  ctx.shadowColor = "rgba(50,255,80,0.18)";
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(fx, fy, fieldW, fieldH);
+  ctx.restore();
+
+  const lineStyle = () => {
+    ctx.strokeStyle = "rgba(255,255,255,0.50)";
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+  };
+
+  ctx.save();
+
+  // --- Midfield line ---
+  lineStyle();
+  ctx.beginPath();
+  ctx.moveTo(fx + fieldW / 2, fy);
+  ctx.lineTo(fx + fieldW / 2, fy + fieldH);
+  ctx.stroke();
+
+  // --- Center circle ---
+  const cr = fieldH * 0.155;
+  ctx.beginPath();
+  ctx.arc(fx + fieldW / 2, fy + fieldH / 2, cr, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(fx + fieldW / 2, fy + fieldH / 2, 4, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.fill();
+
+  // --- Penalty areas ---
+  const paW = fieldW * 0.16;
+  const paH = fieldH * 0.56;
+  const paY = fy + (fieldH - paH) / 2;
+
+  // Left penalty area
+  ctx.strokeRect(fx, paY, paW, paH);
+  // Right penalty area
+  ctx.strokeRect(fx + fieldW - paW, paY, paW, paH);
+
+  // --- Goal areas (6-yard box) ---
+  const gaW = fieldW * 0.065;
+  const gaH = fieldH * 0.28;
+  const gaY = fy + (fieldH - gaH) / 2;
+
+  ctx.strokeRect(fx, gaY, gaW, gaH);
+  ctx.strokeRect(fx + fieldW - gaW, gaY, gaW, gaH);
+
+  // --- Goals ---
+  const goalW = fieldW * 0.012;
+  const goalH = fieldH * 0.14;
+  const goalY = fy + (fieldH - goalH) / 2;
+
+  ctx.strokeStyle = "rgba(255,255,255,0.40)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(fx - goalW, goalY, goalW, goalH);
+  ctx.strokeRect(fx + fieldW, goalY, goalW, goalH);
+
+  // --- Penalty spots ---
+  const spotR = 3;
+  ctx.fillStyle = "rgba(255,255,255,0.50)";
+  ctx.beginPath();
+  ctx.arc(fx + fieldW * 0.115, fy + fieldH / 2, spotR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(fx + fieldW * 0.885, fy + fieldH / 2, spotR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // --- Penalty arc ---
+  const arcR = cr;
+  ctx.strokeStyle = "rgba(255,255,255,0.50)";
+  ctx.lineWidth = 1.8;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(fx + paW, fy, fieldW - 2 * paW, fieldH);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.arc(fx + fieldW * 0.115, fy + fieldH / 2, arcR, -Math.PI * 0.62, Math.PI * 0.62);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(fx, fy, fieldW - paW, fieldH);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.arc(fx + fieldW * 0.885, fy + fieldH / 2, arcR, Math.PI - Math.PI * 0.62, Math.PI + Math.PI * 0.62);
+  ctx.stroke();
+  ctx.restore();
+
+  // --- Corner arcs ---
+  const cornerR = fieldH * 0.05;
+  ctx.strokeStyle = "rgba(255,255,255,0.48)";
+  ctx.lineWidth = 1.8;
+
+  ctx.beginPath();
+  ctx.arc(fx, fy, cornerR, 0, Math.PI / 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(fx + fieldW, fy, cornerR, Math.PI / 2, Math.PI);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(fx, fy + fieldH, cornerR, -Math.PI / 2, 0);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(fx + fieldW, fy + fieldH, cornerR, Math.PI, Math.PI * 1.5);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // --- Dark vignette overlay ---
+  const vig = ctx.createRadialGradient(w / 2, h / 2, fieldH * 0.2, w / 2, h / 2, w * 0.75);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(0.55, "rgba(0,0,0,0.3)");
+  vig.addColorStop(1, "rgba(0,0,0,0.85)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, w, h);
+
+  // Return field bounds for use in particle clipping / positioning
+  return { fx, fy, fieldW, fieldH };
+}
+
+function drawBall(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  rotation: number,
+  opacity: number
+) {
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+
+  // Ball circle
+  ctx.beginPath();
+  ctx.arc(0, 0, size, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.3)";
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // Classic pentagon patch pattern (simplified)
+  ctx.fillStyle = "rgba(20,20,20,0.80)";
+  const patches = [
+    [0, 0],
+    [0, -size * 0.58],
+    [size * 0.55, -size * 0.18],
+    [size * 0.34, size * 0.47],
+    [-size * 0.34, size * 0.47],
+    [-size * 0.55, -size * 0.18],
+  ];
+  for (const [px, py] of patches) {
+    ctx.beginPath();
+    const pr = size * (px === 0 && py === 0 ? 0.22 : 0.16);
+    // Draw a pentagon
+    for (let i = 0; i < 5; i++) {
+      const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+      const ppx = px + pr * Math.cos(angle);
+      const ppy = py + pr * Math.sin(angle);
+      if (i === 0) ctx.moveTo(ppx, ppy);
+      else ctx.lineTo(ppx, ppy);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
 export function LoginBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef<MousePos>({ x: -9999, y: -9999 });
   const rafRef = useRef<number>(0);
-  const particlesRef = useRef<Particle[]>([]);
+  const ballsRef = useRef<Ball[]>([]);
+  const fieldRef = useRef({ fx: 0, fy: 0, fieldW: 800, fieldH: 500 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -46,111 +248,76 @@ export function LoginBackground() {
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      init();
+      initBalls();
     };
 
-    const init = () => {
-      const count = Math.floor((canvas.width * canvas.height) / 18000);
-      particlesRef.current = Array.from({ length: Math.min(count, 60) }, () => ({
+    const initBalls = () => {
+      const count = 12;
+      ballsRef.current = Array.from({ length: count }, () => ({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        radius: 4 + Math.random() * 10,
-        opacity: 0.04 + Math.random() * 0.10,
-        opacityDir: Math.random() > 0.5 ? 1 : -1,
-        pulse: Math.random() * Math.PI * 2,
-        pulseSpeed: 0.005 + Math.random() * 0.01,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        size: 4 + Math.random() * 8,
+        opacity: 0.08 + Math.random() * 0.18,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.015,
       }));
     };
 
     const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Deep dark radial gradient background
-      const bg = ctx.createRadialGradient(
-        canvas.width * 0.5, canvas.height * 0.5, 0,
-        canvas.width * 0.5, canvas.height * 0.5, canvas.width * 0.8
-      );
-      bg.addColorStop(0, "hsl(220,20%,9%)");
-      bg.addColorStop(0.5, "hsl(220,20%,7%)");
-      bg.addColorStop(1, "hsl(220,20%,4%)");
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Mouse-reactive glow
+      const { width: w, height: h } = canvas;
       const mx = mouseRef.current.x;
       const my = mouseRef.current.y;
-      if (mx > 0) {
-        const glow = ctx.createRadialGradient(mx, my, 0, mx, my, 280);
-        glow.addColorStop(0, `rgba(${GOLD},0.06)`);
-        glow.addColorStop(1, `rgba(${GOLD},0)`);
-        ctx.fillStyle = glow;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
 
-      // Hex grid particles
-      const particles = particlesRef.current;
-      for (const p of particles) {
-        p.pulse += p.pulseSpeed;
-        const pulsedOpacity = p.opacity + Math.sin(p.pulse) * 0.03;
+      // Draw football field
+      const fieldBounds = drawField(ctx, w, h, mx, my);
+      fieldRef.current = fieldBounds;
 
-        // Distance to mouse
-        const dx = p.x - mx;
-        const dy = p.y - my;
+      // Draw floating balls
+      for (const b of ballsRef.current) {
+        // Mouse repulsion
+        const dx = b.x - mx;
+        const dy = b.y - my;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const attracted = dist < 180;
-        const boostOpacity = attracted ? pulsedOpacity + (1 - dist / 180) * 0.18 : pulsedOpacity;
-        const boostRadius = attracted ? p.radius + (1 - dist / 180) * 4 : p.radius;
-
-        // Draw hex
-        hexPath(p.x, p.y, boostRadius, ctx);
-        const isGold = p.radius > 9;
-        ctx.strokeStyle = `rgba(${isGold ? GOLD : WHITE},${boostOpacity})`;
-        ctx.lineWidth = isGold ? 1.2 : 0.6;
-        ctx.stroke();
-
-        // Inner glow for gold hexes
-        if (isGold && boostOpacity > 0.08) {
-          hexPath(p.x, p.y, boostRadius * 0.5, ctx);
-          ctx.strokeStyle = `rgba(${GOLD},${boostOpacity * 0.5})`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
+        if (dist < 140) {
+          const force = (1 - dist / 140) * 0.8;
+          b.vx += (dx / dist) * force * 0.06;
+          b.vy += (dy / dist) * force * 0.06;
         }
 
-        // Move
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < -30) p.x = canvas.width + 30;
-        if (p.x > canvas.width + 30) p.x = -30;
-        if (p.y < -30) p.y = canvas.height + 30;
-        if (p.y > canvas.height + 30) p.y = -30;
+        // Damping
+        b.vx *= 0.985;
+        b.vy *= 0.985;
+
+        // Speed cap
+        const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+        if (speed > 2.5) { b.vx = (b.vx / speed) * 2.5; b.vy = (b.vy / speed) * 2.5; }
+
+        b.x += b.vx;
+        b.y += b.vy;
+        b.rotation += b.rotSpeed;
+
+        // Wrap
+        if (b.x < -20) b.x = w + 20;
+        if (b.x > w + 20) b.x = -20;
+        if (b.y < -20) b.y = h + 20;
+        if (b.y > h + 20) b.y = -20;
+
+        // Boost opacity near mouse
+        const boostOpacity = dist < 160 ? b.opacity + (1 - dist / 160) * 0.25 : b.opacity;
+
+        drawBall(ctx, b.x, b.y, b.size, b.rotation, boostOpacity);
       }
 
-      // Connection lines between close particles
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < 120) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(${GOLD},${(1 - d / 120) * 0.06})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
+      // Spotlight follow: subtle golden light near mouse
+      if (mx > 0 && mx < w) {
+        const spot = ctx.createRadialGradient(mx, my, 0, mx, my, 90);
+        spot.addColorStop(0, "rgba(201,162,39,0.07)");
+        spot.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = spot;
+        ctx.fillRect(0, 0, w, h);
       }
-
-      // Subtle scanline top-to-bottom
-      const scanGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      scanGrad.addColorStop(0, `rgba(${GOLD},0.015)`);
-      scanGrad.addColorStop(0.5, `rgba(${GOLD},0)`);
-      scanGrad.addColorStop(1, `rgba(${GOLD},0.02)`);
-      ctx.fillStyle = scanGrad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       rafRef.current = requestAnimationFrame(draw);
     };
