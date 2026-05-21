@@ -12,6 +12,7 @@ export const matchesTable = pgTable("matches", {
   status: text("status", { enum: ["upcoming", "live", "finished"] }).notNull().default("upcoming"),
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
+  youtubeUrl: text("youtube_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

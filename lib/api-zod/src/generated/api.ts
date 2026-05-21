@@ -82,6 +82,7 @@ export const ListMatchesResponseItem = zod.object({
   "status": zod.enum(['upcoming', 'live', 'finished']),
   "homeScore": zod.number().nullish(),
   "awayScore": zod.number().nullish(),
+  "youtubeUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListMatchesResponse = zod.array(ListMatchesResponseItem)
@@ -116,6 +117,7 @@ export const GetMatchResponse = zod.object({
   "status": zod.enum(['upcoming', 'live', 'finished']),
   "homeScore": zod.number().nullish(),
   "awayScore": zod.number().nullish(),
+  "youtubeUrl": zod.string().nullish(),
   "createdAt": zod.string(),
   "predictions": zod.array(zod.object({
   "id": zod.number(),
@@ -151,7 +153,8 @@ export const UpdateMatchBody = zod.object({
   "matchDate": zod.string().optional(),
   "status": zod.enum(['upcoming', 'live', 'finished']).optional(),
   "homeScore": zod.number().nullish(),
-  "awayScore": zod.number().nullish()
+  "awayScore": zod.number().nullish(),
+  "youtubeUrl": zod.string().nullish()
 })
 
 export const UpdateMatchResponse = zod.object({
@@ -164,6 +167,7 @@ export const UpdateMatchResponse = zod.object({
   "status": zod.enum(['upcoming', 'live', 'finished']),
   "homeScore": zod.number().nullish(),
   "awayScore": zod.number().nullish(),
+  "youtubeUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -285,6 +289,7 @@ export const GetDashboardResponse = zod.object({
   "status": zod.enum(['upcoming', 'live', 'finished']),
   "homeScore": zod.number().nullish(),
   "awayScore": zod.number().nullish(),
+  "youtubeUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })),
   "liveMatches": zod.array(zod.object({
@@ -297,6 +302,7 @@ export const GetDashboardResponse = zod.object({
   "status": zod.enum(['upcoming', 'live', 'finished']),
   "homeScore": zod.number().nullish(),
   "awayScore": zod.number().nullish(),
+  "youtubeUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })),
   "topRanking": zod.array(zod.object({

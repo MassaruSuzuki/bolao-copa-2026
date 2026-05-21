@@ -373,6 +373,8 @@ components:
           type: ["integer", "null"]
         awayScore:
           type: ["integer", "null"]
+        youtubeUrl:
+          type: ["string", "null"]
         createdAt:
           type: string
       required:
@@ -405,6 +407,8 @@ components:
           type: ["integer", "null"]
         awayScore:
           type: ["integer", "null"]
+        youtubeUrl:
+          type: ["string", "null"]
         createdAt:
           type: string
         predictions:
@@ -458,6 +462,8 @@ components:
           type: ["integer", "null"]
         awayScore:
           type: ["integer", "null"]
+        youtubeUrl:
+          type: ["string", "null"]
 
     Prediction:
       type: object

@@ -18,4 +18,6 @@ export interface MatchUpdate {
   homeScore?: number | null;
   /** @nullable */
   awayScore?: number | null;
+  /** @nullable */
+  youtubeUrl?: string | null;
 }

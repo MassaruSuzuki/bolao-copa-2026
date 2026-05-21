@@ -22,6 +22,8 @@ export interface MatchWithPredictions {
   homeScore?: number | null;
   /** @nullable */
   awayScore?: number | null;
+  /** @nullable */
+  youtubeUrl?: string | null;
   createdAt: string;
   predictions: PredictionWithUser[];
 }

@@ -28,6 +28,7 @@ interface EditState {
   status: MatchStatus;
   homeScore: string;
   awayScore: string;
+  youtubeUrl: string;
 }
 
 export default function AdminPage() {
@@ -93,6 +94,7 @@ export default function AdminPage() {
       status: (m as { status: string }).status as MatchStatus,
       homeScore: (m as { homeScore?: number | null }).homeScore?.toString() ?? "",
       awayScore: (m as { awayScore?: number | null }).awayScore?.toString() ?? "",
+      youtubeUrl: (m as { youtubeUrl?: string | null }).youtubeUrl ?? "",
     });
   };
 
@@ -105,6 +107,7 @@ export default function AdminPage() {
       awayLogo: editState.awayLogo,
       matchDate: new Date(editState.matchDate).toISOString(),
       status: editState.status,
+      youtubeUrl: editState.youtubeUrl || null,
     };
     if (editState.homeScore !== "") updateData.homeScore = parseInt(editState.homeScore, 10);
     if (editState.awayScore !== "") updateData.awayScore = parseInt(editState.awayScore, 10);
@@ -267,6 +270,15 @@ export default function AdminPage() {
                   <Label>Gols Visitante</Label>
                   <Input type="number" min="0" value={editState.awayScore} onChange={(e) => setEditState({ ...editState, awayScore: e.target.value })} data-testid="input-away-score" />
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Link YouTube (transmissão ao vivo)</Label>
+                <Input
+                  placeholder="https://youtube.com/watch?v=..."
+                  value={editState.youtubeUrl}
+                  onChange={(e) => setEditState({ ...editState, youtubeUrl: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Cole o link do YouTube para exibir a transmissão na aba Ao Vivo</p>
               </div>
             </div>
           )}
