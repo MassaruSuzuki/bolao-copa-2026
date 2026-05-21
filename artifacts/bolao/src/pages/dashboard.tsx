@@ -1,11 +1,25 @@
-import { useGetDashboard, getGetDashboardQueryKey } from "@workspace/api-client-react";
+import { useEffect, useRef } from "react";
+import {
+  useGetDashboard,
+  getGetDashboardQueryKey,
+  useGetLiveRanking,
+  getGetLiveRankingQueryKey,
+  useGetRanking,
+  getGetRankingQueryKey,
+  useListMatches,
+  getListMatchesQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
+import { AnimatedRankingList } from "@/components/AnimatedRankingList";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Calendar, Trophy, Zap } from "lucide-react";
+import { Users, Calendar, Trophy, Zap, Radio } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useAuth } from "@/contexts/AuthContext";
+import type { RankingEntry } from "@workspace/api-client-react";
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "live") return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Ao Vivo</Badge>;
@@ -13,10 +27,71 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">Em Breve</Badge>;
 }
 
+function toLiveShape(entries: RankingEntry[] | undefined) {
+  return (entries ?? []).map((e) => ({
+    userId: e.userId,
+    name: e.name,
+    basePoints: e.totalPoints,
+    liveBonus: 0,
+    projectedTotal: e.totalPoints,
+    liveMatchId: null,
+    predHome: null,
+    predAway: null,
+    currentHome: null,
+    currentAway: null,
+    proximity: null,
+    hasPrediction: e.totalPredictions > 0,
+  }));
+}
+
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const { data, isLoading } = useGetDashboard({
     query: { queryKey: getGetDashboardQueryKey() },
   });
+
+  const { data: liveMatches } = useListMatches(
+    { status: "live" },
+    { query: { queryKey: getListMatchesQueryKey({ status: "live" }), refetchInterval: 10_000 } }
+  );
+  const hasLiveMatch = (liveMatches?.length ?? 0) > 0;
+  const liveMatch = liveMatches?.[0];
+
+  const { data: baseRanking } = useGetRanking({
+    query: { queryKey: getGetRankingQueryKey(), enabled: !hasLiveMatch },
+  });
+
+  const { data: liveRanking, isLoading: loadingLive } = useGetLiveRanking({
+    query: {
+      queryKey: getGetLiveRankingQueryKey(),
+      enabled: hasLiveMatch,
+      refetchInterval: 10_000,
+    },
+  });
+
+  useEffect(() => {
+    if (hasLiveMatch) {
+      pollRef.current = setInterval(() => {
+        qc.invalidateQueries({ queryKey: getGetLiveRankingQueryKey() });
+      }, 10_000);
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [hasLiveMatch, qc]);
+
+  const rankingEntries = (hasLiveMatch ? (liveRanking ?? []) : toLiveShape(baseRanking)).slice(0, 5);
+  const rankingLoading = hasLiveMatch ? loadingLive : false;
+
+  const stats = [
+    { label: "Participantes", value: data?.totalParticipants ?? 0, icon: Users, color: "text-blue-400" },
+    { label: "Total de Jogos", value: data?.totalMatches ?? 0, icon: Calendar, color: "text-purple-400" },
+    { label: "Jogos Ao Vivo", value: data?.liveMatches?.length ?? 0, icon: Zap, color: "text-red-400" },
+    { label: "Encerrados", value: data?.finishedMatches ?? 0, icon: Trophy, color: "text-primary" },
+  ];
 
   if (isLoading) {
     return (
@@ -34,13 +109,6 @@ export default function DashboardPage() {
       </Layout>
     );
   }
-
-  const stats = [
-    { label: "Participantes", value: data?.totalParticipants ?? 0, icon: Users, color: "text-blue-400" },
-    { label: "Total de Jogos", value: data?.totalMatches ?? 0, icon: Calendar, color: "text-purple-400" },
-    { label: "Jogos Ao Vivo", value: data?.liveMatches?.length ?? 0, icon: Zap, color: "text-red-400" },
-    { label: "Encerrados", value: data?.finishedMatches ?? 0, icon: Trophy, color: "text-primary" },
-  ];
 
   return (
     <Layout>
@@ -115,37 +183,52 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Mini Ranking */}
-          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
+          {/* Placar do Bolão */}
+          <div className={`bg-card border rounded-xl overflow-hidden ${hasLiveMatch ? "border-primary/20" : "border-card-border"}`}>
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="font-semibold text-sm text-foreground">Ranking</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-sm text-foreground">Placar do Bolão</h2>
+                {hasLiveMatch && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-red-500/30 bg-red-500/10">
+                    <Radio className="w-2.5 h-2.5 text-red-400 animate-pulse" />
+                    <span className="text-xs font-semibold text-red-400">AO VIVO</span>
+                  </div>
+                )}
+              </div>
               <Link href="/ranking" className="text-xs text-primary hover:underline">Ver completo</Link>
             </div>
-            <div className="divide-y divide-border">
-              {data?.topRanking?.map((entry, idx) => (
-                <div key={entry.userId} className="px-5 py-3 flex items-center gap-3" data-testid={`ranking-entry-${entry.userId}`}>
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                    idx === 0 ? "bg-yellow-500/20 text-yellow-400" :
-                    idx === 1 ? "bg-gray-400/20 text-gray-300" :
-                    idx === 2 ? "bg-orange-500/20 text-orange-400" :
-                    "bg-muted text-muted-foreground"
-                  }`}>
-                    {idx + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{entry.name}</p>
-                    <p className="text-xs text-muted-foreground">{entry.totalPredictions} palpites</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-primary">{entry.totalPoints}</p>
-                    <p className="text-xs text-muted-foreground">pts</p>
-                  </div>
+
+            {/* Live score mini-banner */}
+            {hasLiveMatch && liveMatch && liveMatch.homeScore != null && liveMatch.awayScore != null && (
+              <div className="px-4 py-2.5 flex items-center justify-between border-b border-border/50"
+                style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.07) 0%, rgba(201,162,39,0.02) 100%)" }}>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-primary animate-pulse flex-shrink-0" />
+                  <p className="text-xs font-semibold text-foreground">
+                    {liveMatch.homeTeam}{" "}
+                    <span className="text-primary tabular-nums font-black">
+                      {liveMatch.homeScore} x {liveMatch.awayScore}
+                    </span>{" "}
+                    {liveMatch.awayTeam}
+                  </p>
                 </div>
-              ))}
-              {!data?.topRanking?.length && (
-                <div className="px-5 py-8 text-center text-sm text-muted-foreground">Nenhuma pontuação ainda</div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {rankingLoading ? (
+              <div className="space-y-px">
+                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 rounded-none" />)}
+              </div>
+            ) : rankingEntries.length > 0 ? (
+              <AnimatedRankingList
+                entries={rankingEntries}
+                currentUserId={user?.id}
+                isLive={hasLiveMatch}
+                compact
+              />
+            ) : (
+              <div className="px-5 py-8 text-center text-sm text-muted-foreground">Nenhuma pontuação ainda</div>
+            )}
           </div>
         </div>
       </div>
