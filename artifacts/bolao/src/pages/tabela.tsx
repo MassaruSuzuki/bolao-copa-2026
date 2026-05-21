@@ -32,7 +32,7 @@ export default function TabelaPage() {
   const { user } = useAuth();
 
   const { data: ranking, isLoading } = useGetRanking({
-    query: { queryKey: getGetRankingQueryKey(), refetchInterval: 30_000 },
+    query: { queryKey: getGetRankingQueryKey(), refetchInterval: 10_000 },
   });
 
   // Watch for live matches so positions can update when a match finishes
@@ -78,7 +78,6 @@ export default function TabelaPage() {
       <div className="p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Tabela do Bolão</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Classificação detalhada — estilo Campeonato Brasileiro</p>
         </div>
 
         {/* Legend */}
