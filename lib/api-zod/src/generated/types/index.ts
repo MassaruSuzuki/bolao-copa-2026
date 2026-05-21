@@ -11,6 +11,7 @@ export * from './dashboardSummary';
 export * from './healthStatus';
 export * from './listMatchesParams';
 export * from './listMatchesStatus';
+export * from './liveRankingEntry';
 export * from './loginInput';
 export * from './match';
 export * from './matchInput';

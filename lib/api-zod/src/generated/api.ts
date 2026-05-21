@@ -250,6 +250,26 @@ export const GetRankingResponse = zod.array(GetRankingResponseItem)
 
 
 /**
+ * @summary Get projected ranking including live match scores
+ */
+export const GetLiveRankingResponseItem = zod.object({
+  "userId": zod.number(),
+  "name": zod.string(),
+  "basePoints": zod.number(),
+  "liveBonus": zod.number(),
+  "projectedTotal": zod.number(),
+  "liveMatchId": zod.number().nullish(),
+  "predHome": zod.number().nullish(),
+  "predAway": zod.number().nullish(),
+  "currentHome": zod.number().nullish(),
+  "currentAway": zod.number().nullish(),
+  "proximity": zod.number().nullish(),
+  "hasPrediction": zod.boolean()
+})
+export const GetLiveRankingResponse = zod.array(GetLiveRankingResponseItem)
+
+
+/**
  * @summary Get dashboard summary data
  */
 export const GetDashboardResponse = zod.object({

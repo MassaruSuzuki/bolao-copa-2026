@@ -156,6 +156,27 @@ export interface RankingEntry {
   totalPredictions: number;
 }
 
+export interface LiveRankingEntry {
+  userId: number;
+  name: string;
+  basePoints: number;
+  liveBonus: number;
+  projectedTotal: number;
+  /** @nullable */
+  liveMatchId?: number | null;
+  /** @nullable */
+  predHome?: number | null;
+  /** @nullable */
+  predAway?: number | null;
+  /** @nullable */
+  currentHome?: number | null;
+  /** @nullable */
+  currentAway?: number | null;
+  /** @nullable */
+  proximity?: number | null;
+  hasPrediction: boolean;
+}
+
 export interface DashboardSummary {
   totalParticipants: number;
   upcomingMatches: Match[];

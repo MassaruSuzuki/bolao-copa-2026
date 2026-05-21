@@ -255,6 +255,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/RankingEntry"
 
+  /ranking/live:
+    get:
+      operationId: getLiveRanking
+      tags: [ranking]
+      summary: Get projected ranking including live match scores
+      responses:
+        "200":
+          description: Projected ranking with live bonus points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LiveRankingEntry"
+
   /dashboard:
     get:
       operationId: getDashboard
@@ -537,6 +552,41 @@ components:
         - exactScores
         - correctResults
         - totalPredictions
+
+    LiveRankingEntry:
+      type: object
+      properties:
+        userId:
+          type: integer
+        name:
+          type: string
+        basePoints:
+          type: integer
+        liveBonus:
+          type: integer
+        projectedTotal:
+          type: integer
+        liveMatchId:
+          type: ["integer", "null"]
+        predHome:
+          type: ["integer", "null"]
+        predAway:
+          type: ["integer", "null"]
+        currentHome:
+          type: ["integer", "null"]
+        currentAway:
+          type: ["integer", "null"]
+        proximity:
+          type: ["integer", "null"]
+        hasPrediction:
+          type: boolean
+      required:
+        - userId
+        - name
+        - basePoints
+        - liveBonus
+        - projectedTotal
+        - hasPrediction
 
     DashboardSummary:
       type: object

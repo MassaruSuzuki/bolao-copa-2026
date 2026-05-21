@@ -24,6 +24,7 @@ import type {
   DashboardSummary,
   HealthStatus,
   ListMatchesParams,
+  LiveRankingEntry,
   LoginInput,
   Match,
   MatchInput,
@@ -940,6 +941,83 @@ export function useGetRanking<TData = Awaited<ReturnType<typeof getRanking>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRankingQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetLiveRankingUrl = () => {
+
+
+
+
+  return `/api/ranking/live`
+}
+
+/**
+ * @summary Get projected ranking including live match scores
+ */
+export const getLiveRanking = async ( options?: RequestInit): Promise<LiveRankingEntry[]> => {
+
+  return customFetch<LiveRankingEntry[]>(getGetLiveRankingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiveRankingQueryKey = () => {
+    return [
+    `/api/ranking/live`
+    ] as const;
+    }
+
+
+export const getGetLiveRankingQueryOptions = <TData = Awaited<ReturnType<typeof getLiveRanking>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveRanking>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveRankingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveRanking>>> = ({ signal }) => getLiveRanking({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiveRanking>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLiveRankingQueryResult = NonNullable<Awaited<ReturnType<typeof getLiveRanking>>>
+export type GetLiveRankingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get projected ranking including live match scores
+ */
+
+export function useGetLiveRanking<TData = Awaited<ReturnType<typeof getLiveRanking>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveRanking>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLiveRankingQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
