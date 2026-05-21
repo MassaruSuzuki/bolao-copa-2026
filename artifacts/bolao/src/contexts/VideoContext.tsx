@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useRef, ReactNode } from "react";
 
 interface VideoState {
   url: string | null;
@@ -11,6 +11,9 @@ interface VideoContextType {
   clearVideo: () => void;
   pipSlot: Element | null;
   setPipSlot: (el: Element | null) => void;
+  pipActive: boolean;
+  enablePip: () => void;
+  disablePip: () => void;
 }
 
 const VideoContext = createContext<VideoContextType | null>(null);
@@ -18,6 +21,7 @@ const VideoContext = createContext<VideoContextType | null>(null);
 export function VideoProvider({ children }: { children: ReactNode }) {
   const [video, setVideoState] = useState<VideoState>({ url: null, matchTitle: null });
   const [pipSlot, setPipSlotState] = useState<Element | null>(null);
+  const [pipActive, setPipActive] = useState(false);
 
   const setVideo = useCallback((url: string, matchTitle: string) => {
     setVideoState((prev) => (prev.url === url ? prev : { url, matchTitle }));
@@ -26,14 +30,18 @@ export function VideoProvider({ children }: { children: ReactNode }) {
   const clearVideo = useCallback(() => {
     setVideoState({ url: null, matchTitle: null });
     setPipSlotState(null);
+    setPipActive(false);
   }, []);
 
   const setPipSlot = useCallback((el: Element | null) => {
     setPipSlotState(el);
   }, []);
 
+  const enablePip = useCallback(() => setPipActive(true), []);
+  const disablePip = useCallback(() => setPipActive(false), []);
+
   return (
-    <VideoContext.Provider value={{ video, setVideo, clearVideo, pipSlot, setPipSlot }}>
+    <VideoContext.Provider value={{ video, setVideo, clearVideo, pipSlot, setPipSlot, pipActive, enablePip, disablePip }}>
       {children}
     </VideoContext.Provider>
   );

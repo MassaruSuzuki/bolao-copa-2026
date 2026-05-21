@@ -56,13 +56,17 @@ interface LiveMatchCardProps {
 
 function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMatchCardProps) {
   const [expanded, setExpanded] = useState(isFirst);
-  const { setVideo, setPipSlot } = useVideo();
+  const { setVideo, clearVideo, setPipSlot, pipActive, enablePip } = useVideo();
   const slotRef = useRef<HTMLDivElement>(null);
+  // Track pipActive in a ref so cleanup closures always see the latest value
+  const pipActiveRef = useRef(pipActive);
+  pipActiveRef.current = pipActive;
+
   const embedUrl = match.youtubeUrl ? getYoutubeEmbedUrl(match.youtubeUrl) : null;
   const matchTitle = `${match.homeTeam} × ${match.awayTeam}`;
 
   // When expanded with a video: register the URL in context and dock the iframe here.
-  // When collapsed or navigating away: release to floating PiP (setPipSlot(null)).
+  // On collapse or unmount: if PiP not explicitly enabled, clear the video entirely.
   useEffect(() => {
     if (expanded && match.youtubeUrl && embedUrl && slotRef.current) {
       setVideo(match.youtubeUrl, matchTitle);
@@ -70,7 +74,12 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
     } else {
       setPipSlot(null);
     }
-    return () => { setPipSlot(null); };
+    return () => {
+      setPipSlot(null);
+      if (!pipActiveRef.current) {
+        clearVideo();
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, match.youtubeUrl]);
 
@@ -138,14 +147,29 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
             style={{ overflow: "hidden" }}
           >
             <div className="px-5 pb-4 space-y-4 border-t border-white/5 pt-4">
-              {/* YouTube embed slot — iframe is portaled here from FloatingPlayer */}
+              {/* YouTube embed slot */}
               {embedUrl && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Youtube className="w-3.5 h-3.5 text-red-500" />
-                    <span>Transmissão ao vivo</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Youtube className="w-3.5 h-3.5 text-red-500" />
+                      <span>Transmissão ao vivo</span>
+                    </div>
+                    <button
+                      onClick={() => enablePip()}
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors",
+                        pipActive
+                          ? "border-primary/50 text-primary bg-primary/10"
+                          : "border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20"
+                      )}
+                      title="Continuar assistindo em picture-in-picture ao navegar"
+                    >
+                      <span>⧉</span>
+                      <span>{pipActive ? "PiP ativo" : "Ativar PiP"}</span>
+                    </button>
                   </div>
-                  {/* Portal target: FloatingPlayer moves its iframe here when slot is registered */}
+                  {/* The FloatingPlayer positions its iframe over this div */}
                   <div className="mx-auto rounded-xl overflow-hidden" style={{ maxWidth: "600px", aspectRatio: "16/9" }}>
                     <div ref={slotRef} className="w-full h-full" />
                   </div>

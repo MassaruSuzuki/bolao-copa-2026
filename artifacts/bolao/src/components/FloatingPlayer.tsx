@@ -1,49 +1,34 @@
 import { X, Minimize2 } from "lucide-react";
-import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useLayoutEffect, useEffect } from "react";
 import { useVideo } from "@/contexts/VideoContext";
 import { getYoutubeEmbedUrl } from "@/lib/youtube";
 import { useLocation } from "wouter";
-
-interface Rect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
 
 const PIP_WIDTH = 320;
 const PIP_HEIGHT = 180;
 const PIP_MARGIN = 16;
 
 export function FloatingPlayer() {
-  const { video, clearVideo, pipSlot } = useVideo();
+  const { video, clearVideo, pipSlot, pipActive } = useVideo();
   const [location] = useLocation();
   const [minimized, setMinimized] = useState(false);
-  const [rect, setRect] = useState<Rect | null>(null);
-  const rafRef = useRef<number>(0);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   const isOnLivePage = location === "/ao-vivo";
   const embedUrl = video.url ? getYoutubeEmbedUrl(video.url) : null;
 
-  // Track slot position so the always-mounted iframe can be repositioned over it
+  // Track slot element position so the always-mounted iframe can be repositioned over it
   useLayoutEffect(() => {
-    if (!pipSlot) {
-      setRect(null);
-      return;
-    }
-
+    if (!pipSlot) { setRect(null); return; }
     const update = () => {
       const r = pipSlot.getBoundingClientRect();
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
     };
-
     update();
-
     const ro = new ResizeObserver(update);
     ro.observe(pipSlot);
     window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
-
     return () => {
       ro.disconnect();
       window.removeEventListener("scroll", update, true);
@@ -51,24 +36,22 @@ export function FloatingPlayer() {
     };
   }, [pipSlot]);
 
-  // Cancel any pending RAF on unmount
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
-
   if (!embedUrl) return null;
 
-  // Docked into card slot
   const docked = !!pipSlot && !!rect;
-  // Hidden: on ao-vivo page but no slot yet (transitioning), or no video
-  const hidden = isOnLivePage && !docked;
 
-  // Compute fixed position
-  const pipBottom = `${PIP_MARGIN}px`;
-  const pipRight = `${PIP_MARGIN}px`;
-  const pipWidth = docked ? `${rect!.width}px` : minimized ? "220px" : `${PIP_WIDTH}px`;
-  const pipTop = docked ? `${rect!.top}px` : undefined;
-  const pipLeft = docked ? `${rect!.left}px` : undefined;
-  const pipRight2 = docked ? undefined : pipRight;
-  const pipBottomVal = docked ? undefined : pipBottom;
+  // Off ao-vivo page: only show floating PiP if explicitly enabled by user
+  const showFloating = !isOnLivePage && pipActive;
+
+  // Hidden: on ao-vivo but no slot yet, OR off ao-vivo but PiP not requested
+  const hidden = !docked && !showFloating;
+
+  const pipTop    = docked ? `${rect!.top}px`    : undefined;
+  const pipLeft   = docked ? `${rect!.left}px`   : undefined;
+  const pipRight  = docked ? undefined : `${PIP_MARGIN}px`;
+  const pipBottom = docked ? undefined : `${PIP_MARGIN}px`;
+  const pipWidth  = docked ? `${rect!.width}px`  : minimized ? "220px" : `${PIP_WIDTH}px`;
+  const pipHeight = docked ? `${rect!.height}px` : undefined;
 
   return (
     <div
@@ -77,12 +60,11 @@ export function FloatingPlayer() {
         zIndex: 50,
         top: pipTop,
         left: pipLeft,
-        bottom: pipBottomVal,
-        right: pipRight2,
+        bottom: pipBottom,
+        right: pipRight,
         width: pipWidth,
-        // When docked, fill the slot height; otherwise PiP fixed height
-        height: docked ? `${rect!.height}px` : undefined,
-        borderRadius: docked ? "12px" : "12px",
+        height: pipHeight,
+        borderRadius: "12px",
         overflow: "hidden",
         boxShadow: docked ? "none" : "0 25px 50px -12px rgba(0,0,0,0.7)",
         border: docked ? "none" : "1px solid rgba(201,162,39,0.3)",
@@ -91,9 +73,8 @@ export function FloatingPlayer() {
         flexDirection: "column",
         transition: docked
           ? "top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease"
-          : "bottom 0.25s ease, right 0.25s ease, width 0.2s ease",
+          : "width 0.2s ease",
         pointerEvents: hidden ? "none" : undefined,
-        opacity: hidden ? 0 : 1,
       }}
     >
       {/* PiP header — only shown when floating */}
@@ -124,18 +105,19 @@ export function FloatingPlayer() {
         </div>
       )}
 
-      {/* The ONE iframe — never unmounts, just repositioned */}
+      {/* The ONE iframe — never unmounts while URL is set */}
       <div
         style={{
           flex: 1,
           overflow: "hidden",
           height: !docked && minimized ? 0 : undefined,
+          minHeight: docked ? undefined : `${PIP_HEIGHT}px`,
           transition: "height 0.2s ease",
         }}
       >
         <iframe
           src={embedUrl}
-          style={{ width: "100%", height: "100%", border: "none", display: "block", minHeight: docked ? undefined : `${PIP_HEIGHT}px` }}
+          style={{ width: "100%", height: "100%", border: "none", display: "block" }}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
         />
