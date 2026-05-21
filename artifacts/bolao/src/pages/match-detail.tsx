@@ -265,8 +265,8 @@ export default function MatchDetailPage() {
                             <span className="text-xs text-primary">(você)</span>
                           )}
                         </div>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          Palpite: {p.homeGoals} × {p.awayGoals}
+                        <span className="text-sm font-bold text-muted-foreground tabular-nums">
+                          {p.homeGoals} × {p.awayGoals}
                         </span>
                       </div>
                       <div className="text-right flex-shrink-0">
