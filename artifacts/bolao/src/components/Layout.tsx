@@ -11,15 +11,19 @@ import {
   LogOut,
   Menu,
   X,
+  Radio,
+  TableProperties,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
+  { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/ranking", label: "Ranking", icon: Trophy },
   { href: "/matches", label: "Jogos", icon: Calendar },
   { href: "/predictions", label: "Meus Palpites", icon: Target },
-  { href: "/ranking", label: "Ranking", icon: Trophy },
+  { href: "/tabela", label: "Tabela do Bolão", icon: TableProperties },
 ];
 
 interface LayoutProps {
@@ -72,6 +76,7 @@ export function Layout({ children }: LayoutProps) {
         <nav className="flex-1 px-3 py-4 space-y-0.5" data-testid="nav-sidebar">
           {allNavItems.map(({ href, label, icon: Icon }) => {
             const active = location === href || location.startsWith(href + "/");
+            const isLive = href === "/ao-vivo";
             return (
               <Link key={href} href={href}>
                 <div
@@ -87,8 +92,11 @@ export function Layout({ children }: LayoutProps) {
                     boxShadow: "0 2px 12px rgba(201,162,39,0.3)",
                   } : {}}
                 >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {label}
+                  <Icon className={cn("w-4 h-4 flex-shrink-0", isLive && !active && "text-red-400")} />
+                  <span className="flex-1">{label}</span>
+                  {isLive && !active && (
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  )}
                 </div>
               </Link>
             );
