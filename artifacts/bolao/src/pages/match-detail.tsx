@@ -147,7 +147,7 @@ export default function MatchDetailPage() {
             {isLocked && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Lock className="w-3.5 h-3.5" />
-                {match.status !== "upcoming" ? "Jogo em andamento ou encerrado" : "Prazo encerrado"}
+                {match.status === "live" ? "Jogo em andamento" : match.status === "finished" ? "Jogo encerrado" : "Prazo encerrado"}
               </div>
             )}
           </div>
