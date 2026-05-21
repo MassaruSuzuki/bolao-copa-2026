@@ -13,7 +13,8 @@ import { AnimatedRankingList } from "@/components/AnimatedRankingList";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Radio, Zap, Clock, Calendar, ChevronDown, ChevronUp, Youtube } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useVideo, getYoutubeEmbedUrl } from "@/contexts/VideoContext";
+import { useVideo } from "@/contexts/VideoContext";
+import { getYoutubeEmbedUrl } from "@/lib/youtube";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -55,20 +56,26 @@ interface LiveMatchCardProps {
 
 function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMatchCardProps) {
   const [expanded, setExpanded] = useState(isFirst);
-  const { video, setVideo, clearVideo } = useVideo();
+  const { setVideo, setPipSlot } = useVideo();
+  const slotRef = useRef<HTMLDivElement>(null);
   const embedUrl = match.youtubeUrl ? getYoutubeEmbedUrl(match.youtubeUrl) : null;
   const matchTitle = `${match.homeTeam} × ${match.awayTeam}`;
 
+  // When expanded with a video: register the URL in context and dock the iframe here.
+  // When collapsed or navigating away: release to floating PiP (setPipSlot(null)).
+  useEffect(() => {
+    if (expanded && match.youtubeUrl && embedUrl && slotRef.current) {
+      setVideo(match.youtubeUrl, matchTitle);
+      setPipSlot(slotRef.current);
+    } else {
+      setPipSlot(null);
+    }
+    return () => { setPipSlot(null); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, match.youtubeUrl]);
+
   const handleToggle = () => {
     setExpanded((prev) => !prev);
-  };
-
-  const handleVideoToggle = () => {
-    if (video.url === match.youtubeUrl) {
-      clearVideo();
-    } else if (match.youtubeUrl) {
-      setVideo(match.youtubeUrl, matchTitle);
-    }
   };
 
   const hasScore = match.homeScore != null && match.awayScore != null;
@@ -131,29 +138,16 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
             style={{ overflow: "hidden" }}
           >
             <div className="px-5 pb-4 space-y-4 border-t border-white/5 pt-4">
-              {/* YouTube embed */}
+              {/* YouTube embed slot — iframe is portaled here from FloatingPlayer */}
               {embedUrl && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Youtube className="w-3.5 h-3.5 text-red-500" />
-                      <span>Transmissão ao vivo</span>
-                    </div>
-                    <button
-                      onClick={handleVideoToggle}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      {video.url === match.youtubeUrl ? "Fechar PiP" : "Abrir em picture-in-picture"}
-                    </button>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Youtube className="w-3.5 h-3.5 text-red-500" />
+                    <span>Transmissão ao vivo</span>
                   </div>
-                  <div className="rounded-xl overflow-hidden" style={{ maxWidth: "480px", aspectRatio: "16/9" }}>
-                    <iframe
-                      src={embedUrl}
-                      className="w-full h-full"
-                      style={{ border: "none" }}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
+                  {/* Portal target: FloatingPlayer moves its iframe here when slot is registered */}
+                  <div className="mx-auto rounded-xl overflow-hidden" style={{ maxWidth: "600px", aspectRatio: "16/9" }}>
+                    <div ref={slotRef} className="w-full h-full" />
                   </div>
                 </div>
               )}
