@@ -13,6 +13,22 @@ import { useUpsertPrediction, getGetMatchQueryKey as getMatchKey, getListMyPredi
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { motion, AnimatePresence } from "framer-motion";
+
+function calcPoints(predHome: number, predAway: number, realHome: number, realAway: number): number {
+  if (predHome === realHome && predAway === realAway) return 5;
+  const predWinner = predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
+  const realWinner = realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
+  if (predWinner === realWinner) return 3;
+  return 0;
+}
+
+function MedalIcon({ position }: { position: number }) {
+  if (position === 1) return <span className="text-base">🥇</span>;
+  if (position === 2) return <span className="text-base">🥈</span>;
+  if (position === 3) return <span className="text-base">🥉</span>;
+  return <span className="w-5 h-5 flex items-center justify-center text-xs text-muted-foreground font-bold">{position}</span>;
+}
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "live") return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse">Ao Vivo</Badge>;
@@ -209,37 +225,68 @@ export default function MatchDetailPage() {
           )}
         </div>
 
-        {/* All Predictions */}
-        <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <Users className="w-4 h-4 text-muted-foreground" />
-            <h2 className="font-semibold text-foreground text-sm">Palpites dos Participantes</h2>
-            <span className="ml-auto text-xs text-muted-foreground">{match.predictions?.length ?? 0} palpites</span>
-          </div>
-          <div className="divide-y divide-border">
-            {match.predictions?.map((p) => (
-              <div key={p.id} className="px-5 py-3 flex items-center justify-between" data-testid={`prediction-row-${p.userId}`}>
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-xs font-bold text-primary">{p.user.name.slice(0, 2).toUpperCase()}</span>
-                  </div>
-                  <span className="text-sm font-medium text-foreground">{p.user.name}</span>
-                  {p.user.id === user?.id && (
-                    <span className="text-xs text-primary">(você)</span>
-                  )}
+        {/* All Predictions — only visible when finished */}
+        {match.status === "finished" && (
+          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <h2 className="font-semibold text-foreground text-sm">Palpites dos Participantes</h2>
+              <span className="ml-auto text-xs text-muted-foreground">{match.predictions?.length ?? 0} palpites</span>
+            </div>
+            <div className="divide-y divide-border">
+              <AnimatePresence initial={false}>
+                {(() => {
+                  const sorted = [...(match.predictions ?? [])].map((p) => ({
+                    ...p,
+                    pts: calcPoints(p.homeGoals, p.awayGoals, match.homeScore!, match.awayScore!),
+                  })).sort((a, b) => b.pts - a.pts);
+
+                  return sorted.map((p, idx) => (
+                    <motion.div
+                      key={p.id}
+                      layout
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.35, delay: idx * 0.06, layout: { duration: 0.4 } }}
+                      className="px-5 py-3 flex items-center gap-3"
+                      data-testid={`prediction-row-${p.userId}`}
+                    >
+                      <div className="w-6 flex items-center justify-center flex-shrink-0">
+                        <MedalIcon position={idx + 1} />
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-primary">{p.user.name.slice(0, 2).toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium text-foreground truncate">{p.user.name}</span>
+                          {p.user.id === user?.id && (
+                            <span className="text-xs text-primary">(você)</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          Palpite: {p.homeGoals} × {p.awayGoals}
+                        </span>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <span className={`text-lg font-black tabular-nums ${p.pts === 5 ? "text-primary" : p.pts === 3 ? "text-foreground" : "text-muted-foreground"}`}>
+                          {p.pts}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-0.5">pts</span>
+                      </div>
+                    </motion.div>
+                  ));
+                })()}
+              </AnimatePresence>
+              {!match.predictions?.length && (
+                <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+                  Nenhum palpite registrado.
                 </div>
-                <span className="text-sm font-bold text-foreground tabular-nums">
-                  {p.homeGoals} x {p.awayGoals}
-                </span>
-              </div>
-            ))}
-            {!match.predictions?.length && (
-              <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-                Nenhum palpite ainda. Seja o primeiro!
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </Layout>
   );
