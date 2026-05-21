@@ -146,7 +146,7 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
                       {video.url === match.youtubeUrl ? "Fechar PiP" : "Abrir em picture-in-picture"}
                     </button>
                   </div>
-                  <div className="rounded-xl overflow-hidden" style={{ aspectRatio: "16/9" }}>
+                  <div className="rounded-xl overflow-hidden" style={{ maxWidth: "480px", aspectRatio: "16/9" }}>
                     <iframe
                       src={embedUrl}
                       className="w-full h-full"

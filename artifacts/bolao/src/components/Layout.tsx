@@ -51,27 +51,29 @@ export function Layout({ children }: LayoutProps) {
         }}
       >
         {/* Brand */}
-        <div
-          className="flex items-center gap-3 px-5 py-4 border-b"
-          style={{ borderColor: "rgba(201,162,39,0.10)" }}
-        >
-          <div className="relative flex-shrink-0">
-            <div
-              className="absolute inset-0 blur-md opacity-50 rounded-full"
-              style={{ background: "rgba(201,162,39,0.4)" }}
-            />
-            <img
-              src="/logo-copa.png"
-              alt="Copa"
-              className="relative w-10 h-auto"
-              style={{ filter: "drop-shadow(0 0 8px rgba(201,162,39,0.6))" }}
-            />
+        <Link href="/dashboard">
+          <div
+            className="flex items-center gap-3 px-5 py-4 border-b cursor-pointer hover:bg-white/5 transition-colors"
+            style={{ borderColor: "rgba(201,162,39,0.10)" }}
+          >
+            <div className="relative flex-shrink-0">
+              <div
+                className="absolute inset-0 blur-md opacity-50 rounded-full"
+                style={{ background: "rgba(201,162,39,0.4)" }}
+              />
+              <img
+                src="/logo-copa.png"
+                alt="Copa"
+                className="relative w-10 h-auto"
+                style={{ filter: "drop-shadow(0 0 8px rgba(201,162,39,0.6))" }}
+              />
+            </div>
+            <div>
+              <p className="font-black text-sm text-white tracking-tight">Bolão da Copa</p>
+              <p className="text-xs font-medium" style={{ color: "rgba(201,162,39,0.7)" }}>FIFA World Cup 2026</p>
+            </div>
           </div>
-          <div>
-            <p className="font-black text-sm text-white tracking-tight">Bolão da Copa</p>
-            <p className="text-xs font-medium" style={{ color: "rgba(201,162,39,0.7)" }}>FIFA World Cup 2026</p>
-          </div>
-        </div>
+        </Link>
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5" data-testid="nav-sidebar">
