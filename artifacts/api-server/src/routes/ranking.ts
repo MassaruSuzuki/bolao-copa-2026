@@ -24,11 +24,21 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
     .where(eq(matchesTable.status, "finished"));
   const allPredictions = await db.select().from(predictionsTable);
 
+  // Today's finished matches (UTC date comparison)
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const todayFinished = finishedMatches.filter((m) => {
+    const d = new Date(m.matchDate);
+    return d >= todayStart && d < tomorrowStart;
+  });
+
   const ranking = allUsers.map((user) => {
     let totalPoints = 0;
     let exactScores = 0;
     let correctResults = 0;
     let totalPredictions = 0;
+    let todayGain = 0;
 
     for (const match of finishedMatches) {
       if (match.homeScore === null || match.awayScore === null) continue;
@@ -43,6 +53,15 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
       if (pts === 3) correctResults++;
     }
 
+    for (const match of todayFinished) {
+      if (match.homeScore === null || match.awayScore === null) continue;
+      const pred = allPredictions.find(
+        (p) => p.userId === user.id && p.matchId === match.id
+      );
+      if (!pred) continue;
+      todayGain += calcPoints(pred.homeGoals, pred.awayGoals, match.homeScore, match.awayScore);
+    }
+
     return {
       userId: user.id,
       name: user.name,
@@ -50,6 +69,7 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
       exactScores,
       correctResults,
       totalPredictions,
+      todayGain,
     };
   });
 

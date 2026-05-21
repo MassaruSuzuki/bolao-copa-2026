@@ -154,6 +154,7 @@ export interface RankingEntry {
   exactScores: number;
   correctResults: number;
   totalPredictions: number;
+  todayGain: number;
 }
 
 export interface LiveRankingEntry {

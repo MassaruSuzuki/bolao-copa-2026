@@ -11,7 +11,29 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { Trophy, Minus } from "lucide-react";
 
-const COLS = "2rem 1fr 2.5rem 2.5rem 2.5rem 3rem";
+const COLS = "2rem 1fr 2.5rem 2.5rem 2.5rem 5rem";
+
+const FLAG: Record<string, string> = {
+  Brasil: "🇧🇷",
+  Argentina: "🇦🇷",
+  França: "🇫🇷",
+  Alemanha: "🇩🇪",
+  Espanha: "🇪🇸",
+  Inglaterra: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  Portugal: "🇵🇹",
+  Itália: "🇮🇹",
+  Holanda: "🇳🇱",
+  Bélgica: "🇧🇪",
+  Uruguai: "🇺🇾",
+  Colômbia: "🇨🇴",
+  México: "🇲🇽",
+  EUA: "🇺🇸",
+  Japão: "🇯🇵",
+};
+
+function flag(team: string) {
+  return FLAG[team] ?? "🏳️";
+}
 
 function PositionBar({ position, total }: { position: number; total: number }) {
   if (position === 1) return <div className="w-1 h-full rounded-r-full bg-yellow-400 absolute left-0 top-0" />;
@@ -35,10 +57,22 @@ export default function TabelaPage() {
     query: { queryKey: getGetRankingQueryKey(), refetchInterval: 10_000 },
   });
 
+  // Finished matches — for today's header
+  const { data: finishedMatches } = useListMatches(
+    { status: "finished" },
+    { query: { queryKey: getListMatchesQueryKey({ status: "finished" }), refetchInterval: 10_000 } }
+  );
+
   // Watch for live matches so positions can update when a match finishes
   useListMatches(
     { status: "live" },
     { query: { queryKey: getListMatchesQueryKey({ status: "live" }), refetchInterval: 10_000 } }
+  );
+
+  // Today's finished matches (UTC date comparison matching server logic)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayMatches = (finishedMatches ?? []).filter(
+    (m) => m.matchDate.slice(0, 10) === todayStr
   );
 
   // FLIP animation refs
@@ -112,6 +146,31 @@ export default function TabelaPage() {
           </div>
         ) : (
           <div className="bg-card border border-card-border rounded-xl overflow-hidden">
+
+            {/* Match flag sub-header — only shown on days with finished matches */}
+            {todayMatches.length > 0 && (
+              <div
+                className="grid items-center px-4 pt-2 pb-0 gap-x-3 bg-muted/20"
+                style={{ gridTemplateColumns: COLS }}
+              >
+                <div />
+                <div />
+                <div className="col-span-4 flex items-center justify-center gap-3 pb-1 border-b border-border/40">
+                  {todayMatches.map((m) => (
+                    <span
+                      key={m.id}
+                      className="flex items-center gap-1 text-sm leading-none"
+                      title={`${m.homeTeam} × ${m.awayTeam}`}
+                    >
+                      <span>{flag(m.homeTeam)}</span>
+                      <span className="text-muted-foreground/50 text-xs font-bold">×</span>
+                      <span>{flag(m.awayTeam)}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Table header */}
             <div
               className="grid items-center border-b border-border px-4 py-2.5 bg-muted/30 gap-x-3"
@@ -132,6 +191,7 @@ export default function TabelaPage() {
                 const isMe = entry.userId === user?.id;
                 const erros = entry.totalPredictions - entry.exactScores - entry.correctResults;
                 const total = ranking.length;
+                const gain = entry.todayGain;
 
                 return (
                   <div
@@ -153,7 +213,7 @@ export default function TabelaPage() {
                       <PositionBadge position={position} />
                     </div>
 
-                    {/* Avatar + Name (combined flex cell) */}
+                    {/* Avatar + Name */}
                     <div className="flex items-center gap-3 min-w-0">
                       <div
                         className={cn(
@@ -202,8 +262,8 @@ export default function TabelaPage() {
                         : <Minus className="w-3 h-3 mx-auto text-muted-foreground/30" />}
                     </div>
 
-                    {/* PTS */}
-                    <div className="text-center">
+                    {/* PTS + today gain badge */}
+                    <div className="flex items-center justify-center gap-1.5">
                       <span className={cn(
                         "text-base font-black tabular-nums",
                         position === 1 ? "text-yellow-400" :
@@ -214,6 +274,11 @@ export default function TabelaPage() {
                       )}>
                         {entry.totalPoints}
                       </span>
+                      {gain > 0 && (
+                        <span className="text-xs font-bold text-emerald-400 leading-none tabular-nums">
+                          +{gain}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

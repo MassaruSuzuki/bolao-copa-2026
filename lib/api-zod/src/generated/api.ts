@@ -244,7 +244,8 @@ export const GetRankingResponseItem = zod.object({
   "totalPoints": zod.number(),
   "exactScores": zod.number(),
   "correctResults": zod.number(),
-  "totalPredictions": zod.number()
+  "totalPredictions": zod.number(),
+  "todayGain": zod.number()
 })
 export const GetRankingResponse = zod.array(GetRankingResponseItem)
 
@@ -304,7 +305,8 @@ export const GetDashboardResponse = zod.object({
   "totalPoints": zod.number(),
   "exactScores": zod.number(),
   "correctResults": zod.number(),
-  "totalPredictions": zod.number()
+  "totalPredictions": zod.number(),
+  "todayGain": zod.number()
 })),
   "totalMatches": zod.number(),
   "finishedMatches": zod.number()
