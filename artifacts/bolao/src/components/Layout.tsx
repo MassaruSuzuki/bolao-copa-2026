@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { FloatingPlayer } from "@/components/FloatingPlayer";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -197,7 +196,6 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
 
-      <FloatingPlayer />
     </div>
   );
 }
