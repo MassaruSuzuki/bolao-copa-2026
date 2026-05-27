@@ -17,7 +17,7 @@ function calcPoints(
 const router: IRouter = Router();
 
 router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
-  const allUsers = await db.select().from(usersTable);
+  const allUsers = await db.select().from(usersTable).where(eq(usersTable.isAdmin, false));
   const allMatches = await db.select().from(matchesTable).orderBy(matchesTable.matchDate);
   const allPredictions = await db.select().from(predictionsTable);
 
