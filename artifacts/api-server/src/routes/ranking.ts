@@ -17,7 +17,7 @@ function calcPoints(
 }
 
 router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
-  const allUsers = await db.select().from(usersTable);
+  const allUsers = await db.select().from(usersTable).where(eq(usersTable.isAdmin, false));
   const finishedMatches = await db
     .select()
     .from(matchesTable)
@@ -78,7 +78,7 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
 });
 
 router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
-  const allUsers = await db.select().from(usersTable);
+  const allUsers = await db.select().from(usersTable).where(eq(usersTable.isAdmin, false));
   const finishedMatches = await db
     .select()
     .from(matchesTable)
