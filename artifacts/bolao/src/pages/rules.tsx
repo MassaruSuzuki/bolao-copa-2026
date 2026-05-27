@@ -31,7 +31,7 @@ export default function RulesPage() {
               className="text-2xl font-black px-4 py-1 rounded-xl"
               style={{ background: "rgba(201,162,39,0.2)", color: "hsl(43,74%,52%)" }}
             >
-              5 pts
+              3 pts
             </span>
           </div>
 
@@ -54,7 +54,7 @@ export default function RulesPage() {
             </div>
             <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
               <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-              <span className="text-green-400 font-semibold">Placar exato — ganha 5 pontos</span>
+              <span className="text-green-400 font-semibold">Placar exato — ganha 3 pontos</span>
             </div>
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function RulesPage() {
           <div className="divide-y divide-white/5">
             <div className="flex items-center justify-between px-5 py-4">
               <span className="text-sm text-foreground">Placar exato</span>
-              <span className="font-black text-primary text-lg">5 pts</span>
+              <span className="font-black text-primary text-lg">3 pts</span>
             </div>
             <div className="flex items-center justify-between px-5 py-4">
               <span className="text-sm text-foreground">Acertou vencedor ou empate</span>
