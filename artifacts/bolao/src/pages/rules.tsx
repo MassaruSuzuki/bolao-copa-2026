@@ -176,7 +176,7 @@ export default function RulesPage() {
           style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
         >
           <p className="font-semibold text-foreground mb-1">⚠️ Observação importante</p>
-          Os acertos <strong className="text-foreground">não são acumulativos</strong>. Se você acertar o placar exato, ganha apenas 5 pts — não ganha os pontos de vencedor junto.
+          Os acertos <strong className="text-foreground">não são acumulativos</strong>. Se você acertar o placar exato, ganha apenas 3 pts — não ganha os pontos de vencedor junto.
         </div>
       </div>
     </Layout>
