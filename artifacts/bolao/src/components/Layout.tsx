@@ -13,6 +13,7 @@ import {
   X,
   Radio,
   TableProperties,
+  BookOpen,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/matches", label: "Jogos", icon: Calendar },
   { href: "/predictions", label: "Meus Palpites", icon: Target },
   { href: "/tabela", label: "Tabela do Bolão", icon: TableProperties },
+  { href: "/rules", label: "Regras", icon: BookOpen },
 ];
 
 interface LayoutProps {

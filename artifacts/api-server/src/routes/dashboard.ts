@@ -10,7 +10,7 @@ function calcPoints(
   if (predHome === realHome && predAway === realAway) return 5;
   const predWinner = predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
   const realWinner = realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
-  if (predWinner === realWinner) return 3;
+  if (predWinner === realWinner) return 1;
   return 0;
 }
 

@@ -15,6 +15,7 @@ import RankingPage from "@/pages/ranking";
 import AoVivoPage from "@/pages/ao-vivo";
 import TabelaPage from "@/pages/tabela";
 import AdminPage from "@/pages/admin";
+import RulesPage from "@/pages/rules";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -65,6 +66,7 @@ function AppRoutes() {
       <Route path="/ao-vivo" component={() => <ProtectedRoute><AoVivoPage /></ProtectedRoute>} />
       <Route path="/tabela" component={() => <ProtectedRoute><TabelaPage /></ProtectedRoute>} />
       <Route path="/admin" component={() => <ProtectedRoute><AdminPage /></ProtectedRoute>} />
+      <Route path="/rules" component={() => <ProtectedRoute><RulesPage /></ProtectedRoute>} />
       <Route component={NotFound} />
     </Switch>
   );
