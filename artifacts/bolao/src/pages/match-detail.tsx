@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Lock, Users } from "lucide-react";
+import { ArrowLeft, Lock, Users, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useUpsertPrediction, getGetMatchQueryKey as getMatchKey, getListMyPredictionsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,10 +16,10 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 
 function calcPoints(predHome: number, predAway: number, realHome: number, realAway: number): number {
-  if (predHome === realHome && predAway === realAway) return 5;
+  if (predHome === realHome && predAway === realAway) return 3;
   const predWinner = predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
   const realWinner = realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
-  if (predWinner === realWinner) return 3;
+  if (predWinner === realWinner) return 1;
   return 0;
 }
 
@@ -50,12 +50,36 @@ export default function MatchDetailPage() {
 
   const myPred = match?.predictions?.find((p) => p.user.id === user?.id);
 
-  const [homeGoals, setHomeGoals] = useState<string>(myPred?.homeGoals?.toString() ?? "");
-  const [awayGoals, setAwayGoals] = useState<string>(myPred?.awayGoals?.toString() ?? "");
+  const [homeGoals, setHomeGoals] = useState<string>("");
+  const [awayGoals, setAwayGoals] = useState<string>("");
+  const [deletingPred, setDeletingPred] = useState(false);
 
   const upsertMutation = useUpsertPrediction();
 
   const isLocked = !match || match.status !== "upcoming" || differenceInMinutes(new Date(match.matchDate), new Date()) <= 60;
+  // When a prediction already exists and match is open, block the form — must delete first
+  const predExistsAndOpen = !!myPred && !isLocked;
+
+  const handleDeletePred = async () => {
+    if (!myPred) return;
+    setDeletingPred(true);
+    try {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch(`/api/predictions/${myPred.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Erro ao excluir");
+      toast({ title: "Palpite excluído", description: "Agora você pode fazer um novo palpite." });
+      qc.invalidateQueries({ queryKey: getMatchKey(matchId) });
+      qc.invalidateQueries({ queryKey: getListMyPredictionsQueryKey() });
+    } catch (err) {
+      toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
+    } finally {
+      setDeletingPred(false);
+    }
+  };
 
   const handleSubmit = () => {
     const h = parseInt(homeGoals, 10);
@@ -168,7 +192,40 @@ export default function MatchDetailPage() {
             )}
           </div>
 
-          {isLocked ? (
+          {/* Prediction already exists and match is open — show read-only + delete */}
+          {predExistsAndOpen ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-center gap-4 py-2">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-1">{match.homeTeam}</p>
+                  <div className="w-16 h-14 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl font-bold text-foreground">{myPred.homeGoals}</span>
+                  </div>
+                </div>
+                <span className="text-muted-foreground text-xl">×</span>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-1">{match.awayTeam}</p>
+                  <div className="w-16 h-14 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl font-bold text-foreground">{myPred.awayGoals}</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-center text-muted-foreground">
+                Para alterar, exclua este palpite e faça um novo
+              </p>
+              <Button
+                variant="outline"
+                className="w-full gap-2 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                onClick={handleDeletePred}
+                disabled={deletingPred}
+                data-testid="button-delete-prediction"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deletingPred ? "Excluindo..." : "Excluir Palpite"}
+              </Button>
+            </div>
+          ) : isLocked ? (
+            /* Locked (match started, deadline passed, or finished) */
             <div className="flex items-center justify-center gap-4 py-4">
               <div className="text-center">
                 <p className="text-xs text-muted-foreground mb-1">{match.homeTeam}</p>
@@ -176,7 +233,7 @@ export default function MatchDetailPage() {
                   <span className="text-2xl font-bold text-foreground">{myPred?.homeGoals ?? "-"}</span>
                 </div>
               </div>
-              <span className="text-muted-foreground text-xl">x</span>
+              <span className="text-muted-foreground text-xl">×</span>
               <div className="text-center">
                 <p className="text-xs text-muted-foreground mb-1">{match.awayTeam}</p>
                 <div className="w-16 h-14 bg-muted/30 rounded-lg flex items-center justify-center">
@@ -185,6 +242,7 @@ export default function MatchDetailPage() {
               </div>
             </div>
           ) : (
+            /* No prediction yet — show create form */
             <div className="space-y-4">
               <div className="flex items-center justify-center gap-4">
                 <div className="text-center">
@@ -199,7 +257,7 @@ export default function MatchDetailPage() {
                     data-testid="input-home-goals"
                   />
                 </div>
-                <span className="text-muted-foreground text-xl mt-5">x</span>
+                <span className="text-muted-foreground text-xl mt-5">×</span>
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground mb-2">{match.awayTeam}</p>
                   <Input
@@ -219,7 +277,7 @@ export default function MatchDetailPage() {
                 disabled={upsertMutation.isPending}
                 data-testid="button-save-prediction"
               >
-                {upsertMutation.isPending ? "Salvando..." : myPred ? "Atualizar Palpite" : "Salvar Palpite"}
+                {upsertMutation.isPending ? "Salvando..." : "Salvar Palpite"}
               </Button>
             </div>
           )}

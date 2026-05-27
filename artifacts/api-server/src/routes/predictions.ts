@@ -6,7 +6,7 @@ import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-const DEADLINE_MINUTES = 60; // 1 hour before match
+const DEADLINE_MINUTES = 60;
 
 router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
   const parsed = UpsertPredictionBody.safeParse(req.body);
@@ -41,25 +41,59 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
     .from(predictionsTable)
     .where(and(eq(predictionsTable.userId, userId), eq(predictionsTable.matchId, matchId)));
 
-  let prediction;
   if (existing) {
-    [prediction] = await db
-      .update(predictionsTable)
-      .set({ homeGoals, awayGoals, updatedAt: new Date() })
-      .where(eq(predictionsTable.id, existing.id))
-      .returning();
-  } else {
-    [prediction] = await db
-      .insert(predictionsTable)
-      .values({ userId, matchId, homeGoals, awayGoals })
-      .returning();
+    res.status(409).json({ error: "Você já tem um palpite para este jogo. Exclua-o para fazer um novo." });
+    return;
   }
+
+  const [prediction] = await db
+    .insert(predictionsTable)
+    .values({ userId, matchId, homeGoals, awayGoals })
+    .returning();
 
   res.json({
     ...prediction,
     createdAt: prediction.createdAt.toISOString(),
     updatedAt: prediction.updatedAt.toISOString(),
   });
+});
+
+router.delete("/predictions/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const userId = req.user!.userId;
+
+  const [existing] = await db
+    .select()
+    .from(predictionsTable)
+    .where(and(eq(predictionsTable.id, id), eq(predictionsTable.userId, userId)));
+
+  if (!existing) {
+    res.status(404).json({ error: "Palpite não encontrado" });
+    return;
+  }
+
+  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, existing.matchId));
+  if (match && match.status !== "upcoming") {
+    res.status(400).json({ error: "Não é possível excluir palpite de jogo já iniciado" });
+    return;
+  }
+
+  if (match) {
+    const now = new Date();
+    const deadline = new Date(match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000);
+    if (now >= deadline) {
+      res.status(400).json({ error: "Prazo encerrado, não é possível excluir o palpite" });
+      return;
+    }
+  }
+
+  await db.delete(predictionsTable).where(eq(predictionsTable.id, id));
+  res.json({ ok: true });
 });
 
 router.get("/predictions/my", requireAuth, async (req, res): Promise<void> => {
