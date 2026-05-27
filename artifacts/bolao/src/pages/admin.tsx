@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Plus, Pencil, Shield } from "lucide-react";
+import { Plus, Pencil, Shield, RefreshCw, Zap } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
 
@@ -39,6 +39,46 @@ export default function AdminPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [editState, setEditState] = useState<EditState | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncingLive, setSyncingLive] = useState(false);
+
+  const handleSyncMatches = async () => {
+    setSyncing(true);
+    try {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch("/api/admin/sync-matches", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { created?: number; updated?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Erro");
+      toast({ title: "Sincronizado!", description: `${data.created} criados, ${data.updated} atualizados` });
+      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    } catch (err) {
+      toast({ title: "Erro ao sincronizar", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSyncLive = async () => {
+    setSyncingLive(true);
+    try {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch("/api/admin/sync-live", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { updated?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Erro");
+      toast({ title: "Placares atualizados!", description: `${data.updated} jogos atualizados` });
+      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    } catch (err) {
+      toast({ title: "Erro ao atualizar placares", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
+    } finally {
+      setSyncingLive(false);
+    }
+  };
 
   // New match form
   const [newMatch, setNewMatch] = useState({
@@ -130,7 +170,7 @@ export default function AdminPage() {
   return (
     <Layout>
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
             <div>
@@ -138,10 +178,30 @@ export default function AdminPage() {
               <p className="text-muted-foreground text-sm">Gerencie jogos e resultados</p>
             </div>
           </div>
-          <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-new-match">
-            <Plus className="w-4 h-4" />
-            Novo Jogo
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={handleSyncLive}
+              disabled={syncingLive}
+              className="gap-2 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            >
+              <Zap className={`w-4 h-4 ${syncingLive ? "animate-pulse" : ""}`} />
+              {syncingLive ? "Atualizando..." : "Placares Ao Vivo"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleSyncMatches}
+              disabled={syncing}
+              className="gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Sincronizando..." : "Sincronizar Copa 2026"}
+            </Button>
+            <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-new-match">
+              <Plus className="w-4 h-4" />
+              Novo Jogo
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

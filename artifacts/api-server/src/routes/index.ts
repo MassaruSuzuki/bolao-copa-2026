@@ -5,6 +5,7 @@ import matchesRouter from "./matches";
 import predictionsRouter from "./predictions";
 import rankingRouter from "./ranking";
 import dashboardRouter from "./dashboard";
+import syncRouter from "./sync";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(matchesRouter);
 router.use(predictionsRouter);
 router.use(rankingRouter);
 router.use(dashboardRouter);
+router.use(syncRouter);
 
 export default router;
