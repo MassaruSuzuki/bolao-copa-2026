@@ -134,11 +134,11 @@ export default function RankingPage() {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pontuação</h3>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-primary/10 rounded-lg py-2 px-3">
-                <p className="text-xl font-black text-primary">5</p>
+                <p className="text-xl font-black text-primary">3</p>
                 <p className="text-xs text-muted-foreground">Placar exato</p>
               </div>
               <div className="bg-yellow-500/10 rounded-lg py-2 px-3">
-                <p className="text-xl font-black text-yellow-400">3</p>
+                <p className="text-xl font-black text-yellow-400">1</p>
                 <p className="text-xs text-muted-foreground">Vencedor certo</p>
               </div>
               <div className="bg-muted/50 rounded-lg py-2 px-3">

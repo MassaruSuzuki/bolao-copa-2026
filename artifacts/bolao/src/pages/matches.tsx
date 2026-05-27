@@ -6,26 +6,30 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar, Clock, ChevronRight } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MatchStatus = "upcoming" | "live" | "finished";
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "live") return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse">Ao Vivo</Badge>;
-  if (status === "finished") return <Badge variant="secondary">Encerrado</Badge>;
-  return <Badge className="bg-primary/20 text-primary border-primary/30">Em Breve</Badge>;
+  if (status === "live")
+    return (
+      <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse text-[10px] px-1.5 py-0">
+        ● AO VIVO
+      </Badge>
+    );
+  if (status === "finished")
+    return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Encerrado</Badge>;
+  return <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">Em Breve</Badge>;
 }
 
 function DeadlineLabel({ matchDate, status }: { matchDate: string; status: string }) {
   if (status !== "upcoming") return null;
   const minsLeft = differenceInMinutes(new Date(matchDate), new Date());
-  if (minsLeft <= 60) {
-    return <span className="text-xs text-red-400 font-medium">Prazo encerrado</span>;
-  }
-  if (minsLeft <= 120) {
-    return <span className="text-xs text-yellow-400 font-medium">Palpite encerra em {minsLeft - 60}min</span>;
-  }
+  if (minsLeft <= 60)
+    return <span className="text-[10px] text-red-400 font-semibold">Prazo encerrado</span>;
+  if (minsLeft <= 120)
+    return <span className="text-[10px] text-yellow-400 font-semibold">Palpite encerra em {minsLeft - 60}min</span>;
   return null;
 }
 
@@ -46,21 +50,21 @@ export default function MatchesPage() {
 
   return (
     <Layout>
-      <div className="p-6 space-y-6">
+      <div className="px-4 pt-4 pb-4 md:p-6 space-y-4 md:space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Jogos</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Jogos</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Faça seus palpites antes do prazo</p>
         </div>
 
         {/* Filters */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-none">
           {filters.map(({ label, value }) => (
             <button
               key={value}
               onClick={() => setFilter(value)}
               data-testid={`filter-${value}`}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                "px-3.5 py-1.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0",
                 filter === value
                   ? "bg-primary text-primary-foreground"
                   : "bg-card border border-card-border text-muted-foreground hover:text-foreground"
@@ -73,71 +77,82 @@ export default function MatchesPage() {
 
         {isLoading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
           </div>
         ) : (
-          <div className="space-y-3">
-            {matches?.map((m) => (
-              <Link key={m.id} href={`/matches/${m.id}`}>
-                <div
-                  className="bg-card border border-card-border rounded-xl p-4 hover:bg-muted/20 cursor-pointer transition-colors group"
-                  data-testid={`match-card-${m.id}`}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    {/* Teams */}
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+          <div className="space-y-2.5">
+            {matches?.map((m) => {
+              const hasScore = m.status === "live" || m.status === "finished";
+              return (
+                <Link key={m.id} href={`/matches/${m.id}`}>
+                  <div
+                    className="bg-card border border-card-border rounded-2xl p-4 hover:bg-muted/20 active:scale-[0.99] cursor-pointer transition-all"
+                    data-testid={`match-card-${m.id}`}
+                  >
+                    {/* Top row: status + date */}
+                    <div className="flex items-center justify-between mb-3">
+                      <StatusBadge status={m.status} />
+                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                        {format(new Date(m.matchDate), "dd MMM • HH:mm", { locale: ptBR })}
+                      </span>
+                    </div>
+
+                    {/* Teams row */}
+                    <div className="flex items-center justify-between gap-2">
+                      {/* Home team */}
+                      <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
                         <img
                           src={m.homeLogo ?? ""}
                           alt={m.homeTeam}
-                          className="w-8 h-8 object-contain"
+                          className="w-10 h-10 md:w-12 md:h-12 object-contain"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                         />
-                        <span className="font-semibold text-foreground text-sm md:text-base">{m.homeTeam}</span>
+                        <span className="text-xs md:text-sm font-semibold text-foreground text-center leading-tight line-clamp-2">
+                          {m.homeTeam}
+                        </span>
                       </div>
 
-                      {m.status === "finished" || m.status === "live" ? (
-                        <div className="flex items-center gap-2 px-3 py-1 bg-muted/50 rounded-lg">
-                          <span className="text-xl font-bold text-foreground tabular-nums">{m.homeScore ?? "-"}</span>
-                          <span className="text-muted-foreground">x</span>
-                          <span className="text-xl font-bold text-foreground tabular-nums">{m.awayScore ?? "-"}</span>
-                        </div>
-                      ) : (
-                        <div className="px-3 py-1 bg-muted/30 rounded-lg">
-                          <span className="text-sm text-muted-foreground font-medium">vs</span>
-                        </div>
-                      )}
+                      {/* Score / VS */}
+                      <div className="flex-shrink-0 flex flex-col items-center justify-center px-2">
+                        {hasScore ? (
+                          <div
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+                            style={{ background: "rgba(255,255,255,0.05)" }}
+                          >
+                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">{m.homeScore}</span>
+                            <span className="text-base text-muted-foreground/60 font-light">×</span>
+                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">{m.awayScore}</span>
+                          </div>
+                        ) : (
+                          <div
+                            className="px-4 py-1.5 rounded-xl"
+                            style={{ background: "rgba(255,255,255,0.04)" }}
+                          >
+                            <span className="text-sm font-bold text-muted-foreground/60">VS</span>
+                          </div>
+                        )}
+                        <DeadlineLabel matchDate={m.matchDate} status={m.status} />
+                      </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-foreground text-sm md:text-base">{m.awayTeam}</span>
+                      {/* Away team */}
+                      <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
                         <img
                           src={m.awayLogo ?? ""}
                           alt={m.awayTeam}
-                          className="w-8 h-8 object-contain"
+                          className="w-10 h-10 md:w-12 md:h-12 object-contain"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                         />
+                        <span className="text-xs md:text-sm font-semibold text-foreground text-center leading-tight line-clamp-2">
+                          {m.awayTeam}
+                        </span>
                       </div>
                     </div>
-
-                    {/* Status & date */}
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <StatusBadge status={m.status} />
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="w-3 h-3" />
-                        {format(new Date(m.matchDate), "dd/MM", { locale: ptBR })}
-                        <Clock className="w-3 h-3 ml-1" />
-                        {format(new Date(m.matchDate), "HH:mm")}
-                      </div>
-                      <DeadlineLabel matchDate={m.matchDate} status={m.status} />
-                    </div>
-
-                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0 hidden md:block" />
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
             {!matches?.length && (
-              <div className="bg-card border border-card-border rounded-xl p-12 text-center">
+              <div className="bg-card border border-card-border rounded-2xl p-12 text-center">
                 <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground">Nenhum jogo encontrado</p>
               </div>

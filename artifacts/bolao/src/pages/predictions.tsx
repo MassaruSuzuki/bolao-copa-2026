@@ -3,11 +3,10 @@ import { useListMyPredictions, getListMyPredictionsQueryKey, useListMatches, get
 import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Target, Trash2 } from "lucide-react";
+import { Target, Trash2, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -24,8 +23,8 @@ export default function PredictionsPage() {
   });
 
   const isLoading = loadingPreds || loadingMatches;
-
   const matchById = new Map((matches ?? []).map((m) => [m.id, m]));
+  const myPredictions = (predictions ?? []).filter((p) => matchById.has(p.matchId));
 
   const handleDelete = async (predId: number, e: React.MouseEvent) => {
     e.preventDefault();
@@ -49,32 +48,38 @@ export default function PredictionsPage() {
     }
   };
 
-  const myPredictions = (predictions ?? []).filter((p) => matchById.has(p.matchId));
-
   return (
     <Layout>
-      <div className="p-6 space-y-6">
+      <div className="px-4 pt-4 pb-4 md:p-6 space-y-4 md:space-y-6">
+        {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Meus Palpites</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Meus Palpites</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             {myPredictions.length > 0
-              ? `${myPredictions.length} palpite${myPredictions.length > 1 ? "s" : ""} registrado${myPredictions.length > 1 ? "s" : ""}`
-              : "Nenhum palpite registrado ainda"}
+              ? `${myPredictions.length} palpite${myPredictions.length !== 1 ? "s" : ""} registrado${myPredictions.length !== 1 ? "s" : ""}`
+              : "Nenhum palpite ainda"}
           </p>
         </div>
 
         {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+          <div className="space-y-2.5">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
           </div>
         ) : myPredictions.length === 0 ? (
-          <div className="bg-card border border-card-border rounded-xl p-12 text-center">
-            <Target className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">Nenhum palpite ainda</p>
-            <p className="text-sm text-muted-foreground/60 mt-1">Acesse um jogo para fazer seu palpite</p>
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: "rgba(201,162,39,0.08)", border: "1px solid rgba(201,162,39,0.15)" }}
+            >
+              <Target className="w-8 h-8 text-primary/60" />
+            </div>
+            <p className="font-semibold text-foreground mb-1">Nenhum palpite ainda</p>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Vá em <strong className="text-foreground">Jogos</strong> e toque em um jogo para fazer seu palpite
+            </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {myPredictions.map((pred) => {
               const m = matchById.get(pred.matchId);
               if (!m) return null;
@@ -84,56 +89,82 @@ export default function PredictionsPage() {
               return (
                 <Link key={pred.id} href={`/matches/${m.id}`}>
                   <div
-                    className="bg-card border border-card-border rounded-xl p-4 hover:bg-muted/20 cursor-pointer transition-colors"
+                    className="bg-card border border-card-border rounded-2xl p-4 active:scale-[0.99] cursor-pointer transition-all"
                     data-testid={`my-prediction-${m.id}`}
                   >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-1">
-                          <img src={m.homeLogo ?? ""} alt={m.homeTeam} className="w-5 h-5 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                          <span>{m.homeTeam}</span>
-                          <span className="text-muted-foreground">vs</span>
-                          <span>{m.awayTeam}</span>
-                          <img src={m.awayLogo ?? ""} alt={m.awayTeam} className="w-5 h-5 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(m.matchDate), "dd 'de' MMM, HH:mm", { locale: ptBR })}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col items-end gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">Meu palpite:</span>
-                            <span className="font-bold text-foreground tabular-nums">
-                              {pred.homeGoals} × {pred.awayGoals}
-                            </span>
-                          </div>
-                          {m.status === "finished" && m.homeScore !== null && m.awayScore !== null && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Resultado:</span>
-                              <span className="text-xs font-bold text-muted-foreground tabular-nums">
-                                {m.homeScore} × {m.awayScore}
-                              </span>
-                            </div>
-                          )}
-                          {m.status === "live" && <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Ao Vivo</Badge>}
-                          {m.status === "finished" && <Badge variant="secondary" className="text-xs">Encerrado</Badge>}
-                        </div>
-
-                        {isOpen && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground hover:text-red-400 flex-shrink-0"
-                            onClick={(e) => handleDelete(pred.id, e)}
-                            disabled={isDeleting}
-                            title="Excluir palpite"
-                          >
-                            <Trash2 className={`w-4 h-4 ${isDeleting ? "animate-pulse" : ""}`} />
-                          </Button>
+                    {/* Top row */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        {m.status === "live" && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] px-1.5 py-0 animate-pulse">● AO VIVO</Badge>
+                        )}
+                        {m.status === "finished" && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Encerrado</Badge>
+                        )}
+                        {m.status === "upcoming" && (
+                          <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">Em Breve</Badge>
                         )}
                       </div>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                        {format(new Date(m.matchDate), "dd MMM • HH:mm", { locale: ptBR })}
+                      </span>
+                    </div>
+
+                    {/* Teams + scores */}
+                    <div className="flex items-center justify-between gap-3">
+                      {/* Home */}
+                      <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                        <img
+                          src={m.homeLogo ?? ""}
+                          alt={m.homeTeam}
+                          className="w-9 h-9 object-contain"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <span className="text-xs font-semibold text-center leading-tight line-clamp-2 text-foreground">{m.homeTeam}</span>
+                      </div>
+
+                      {/* Prediction vs result */}
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <div
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
+                          style={{ background: "rgba(201,162,39,0.08)", border: "1px solid rgba(201,162,39,0.15)" }}
+                        >
+                          <span className="text-lg font-black text-foreground tabular-nums">{pred.homeGoals}</span>
+                          <span className="text-xs text-muted-foreground/50 font-light">×</span>
+                          <span className="text-lg font-black text-foreground tabular-nums">{pred.awayGoals}</span>
+                        </div>
+                        {m.status === "finished" && m.homeScore !== null && m.awayScore !== null && (
+                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                            Real: {m.homeScore}×{m.awayScore}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Away */}
+                      <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                        <img
+                          src={m.awayLogo ?? ""}
+                          alt={m.awayTeam}
+                          className="w-9 h-9 object-contain"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                        <span className="text-xs font-semibold text-center leading-tight line-clamp-2 text-foreground">{m.awayTeam}</span>
+                      </div>
+
+                      {/* Action */}
+                      {isOpen ? (
+                        <button
+                          className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                          style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)" }}
+                          onClick={(e) => handleDelete(pred.id, e)}
+                          disabled={isDeleting}
+                          title="Excluir palpite"
+                        >
+                          <Trash2 className={`w-4 h-4 text-red-400 ${isDeleting ? "animate-pulse" : ""}`} />
+                        </button>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" />
+                      )}
                     </div>
                   </div>
                 </Link>
