@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import {
   useGetLiveRanking,
   getGetLiveRankingQueryKey,
@@ -13,7 +14,6 @@ import { AnimatedRankingList } from "@/components/AnimatedRankingList";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Radio, Zap, Clock, Calendar, ChevronDown, ChevronUp, Youtube } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useVideo } from "@/contexts/VideoContext";
 import { getYoutubeEmbedUrl } from "@/lib/youtube";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -56,22 +56,7 @@ interface LiveMatchCardProps {
 
 function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMatchCardProps) {
   const [expanded, setExpanded] = useState(isFirst);
-  const { setVideo, setPipSlot } = useVideo();
-  const slotRef = useRef<HTMLDivElement>(null);
   const embedUrl = match.youtubeUrl ? getYoutubeEmbedUrl(match.youtubeUrl) : null;
-  const matchTitle = `${match.homeTeam} × ${match.awayTeam}`;
-
-  // Register video URL and dock slot while expanded; release to floating PiP when not
-  useEffect(() => {
-    if (expanded && match.youtubeUrl && slotRef.current) {
-      setVideo(match.youtubeUrl, matchTitle);
-      setPipSlot(slotRef.current);
-    } else {
-      setPipSlot(null);
-    }
-    return () => { setPipSlot(null); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, match.youtubeUrl]);
 
   const handleToggle = () => {
     setExpanded((prev) => !prev);
@@ -137,7 +122,6 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
             style={{ overflow: "hidden" }}
           >
             <div className="px-5 pb-4 space-y-4 border-t border-white/5 pt-4">
-              {/* Video slot — FloatingPlayer positions its iframe here when docked */}
               {embedUrl && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -148,7 +132,12 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
                     className="mx-auto rounded-xl overflow-hidden bg-black"
                     style={{ maxWidth: "600px", aspectRatio: "16/9" }}
                   >
-                    <div ref={slotRef} className="w-full h-full" />
+                    <iframe
+                      src={embedUrl}
+                      style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
                   </div>
                 </div>
               )}
