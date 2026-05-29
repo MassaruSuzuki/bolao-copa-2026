@@ -23,19 +23,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
 
   const hashed = await bcrypt.hash(password, 10);
-  const [user] = await db.insert(usersTable).values({ name, email, password: hashed }).returning();
+  await db.insert(usersTable).values({ name, email, password: hashed, status: "pending" });
 
-  const token = signToken({ userId: user.id, isAdmin: user.isAdmin });
-  res.status(201).json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      createdAt: user.createdAt.toISOString(),
-    },
-  });
+  res.status(201).json({ pending: true });
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -56,6 +46,16 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
     res.status(401).json({ error: "Email ou senha inválidos" });
+    return;
+  }
+
+  if (user.status === "pending") {
+    res.status(403).json({ error: "pending", message: "Sua conta ainda não foi aprovada pelo administrador." });
+    return;
+  }
+
+  if (user.status === "rejected") {
+    res.status(403).json({ error: "rejected", message: "Sua conta foi recusada. Entre em contato com o administrador." });
     return;
   }
 

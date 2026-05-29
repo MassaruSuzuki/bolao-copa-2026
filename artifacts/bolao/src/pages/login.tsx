@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,9 +8,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
 import { LoginBackground } from "@/components/LoginBackground";
 import { useEffect } from "react";
+import { Clock, XCircle } from "lucide-react";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -21,8 +22,8 @@ type FormData = z.infer<typeof schema>;
 export default function LoginPage() {
   const { login, user } = useAuth();
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   const loginMutation = useLogin();
+  const [accountStatus, setAccountStatus] = useState<"pending" | "rejected" | null>(null);
 
   useEffect(() => {
     if (user) setLocation("/dashboard");
@@ -34,6 +35,7 @@ export default function LoginPage() {
   });
 
   const onSubmit = (data: FormData) => {
+    setAccountStatus(null);
     loginMutation.mutate(
       { data },
       {
@@ -42,8 +44,12 @@ export default function LoginPage() {
           setLocation("/dashboard");
         },
         onError: (err: unknown) => {
-          const message = err instanceof Error ? err.message : "Credenciais inválidas";
-          toast({ title: "Erro ao entrar", description: message, variant: "destructive" });
+          const raw = err instanceof Error ? err.message : "";
+          if (raw.includes("pending") || raw.includes("não foi aprovada")) {
+            setAccountStatus("pending");
+          } else if (raw.includes("rejected") || raw.includes("recusada")) {
+            setAccountStatus("rejected");
+          }
         },
       }
     );
@@ -51,15 +57,11 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Animated hex background */}
       <LoginBackground />
 
-      {/* Content */}
       <div className="relative z-10 w-full max-w-sm px-4">
-        {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="relative mb-4">
-            {/* Gold glow ring behind logo */}
             <div
               className="absolute inset-0 rounded-full blur-2xl opacity-40"
               style={{ background: "radial-gradient(circle, rgba(201,162,39,0.7) 0%, transparent 70%)", transform: "scale(1.4)" }}
@@ -71,18 +73,38 @@ export default function LoginPage() {
               style={{ filter: "drop-shadow(0 0 20px rgba(201,162,39,0.5))" }}
             />
           </div>
-          <h1
-            className="text-3xl font-black tracking-tight text-white"
-            style={{ textShadow: "0 0 24px rgba(201,162,39,0.5), 0 2px 4px rgba(0,0,0,0.8)" }}
-          >
+          <h1 className="text-3xl font-black tracking-tight text-white" style={{ textShadow: "0 0 24px rgba(201,162,39,0.5), 0 2px 4px rgba(0,0,0,0.8)" }}>
             Bolão da Copa
           </h1>
-          <p className="text-sm mt-1" style={{ color: "rgba(201,162,39,0.8)" }}>
-            FIFA World Cup 2026
-          </p>
+          <p className="text-sm mt-1" style={{ color: "rgba(201,162,39,0.8)" }}>FIFA World Cup 2026</p>
         </div>
 
-        {/* Card */}
+        {/* Pending / Rejected status notice */}
+        {accountStatus === "pending" && (
+          <div
+            className="rounded-xl px-4 py-3 mb-4 flex items-start gap-3"
+            style={{ background: "rgba(201,162,39,0.08)", border: "1px solid rgba(201,162,39,0.2)" }}
+          >
+            <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "hsl(43,74%,52%)" }} />
+            <div>
+              <p className="text-sm font-semibold text-white">Aguardando aprovação</p>
+              <p className="text-xs text-white/60 mt-0.5">Sua conta ainda não foi aprovada pelo administrador. Tente novamente mais tarde.</p>
+            </div>
+          </div>
+        )}
+        {accountStatus === "rejected" && (
+          <div
+            className="rounded-xl px-4 py-3 mb-4 flex items-start gap-3"
+            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
+          >
+            <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />
+            <div>
+              <p className="text-sm font-semibold text-white">Acesso recusado</p>
+              <p className="text-xs text-white/60 mt-0.5">Sua conta foi recusada. Entre em contato com o administrador do bolão.</p>
+            </div>
+          </div>
+        )}
+
         <div
           className="rounded-2xl p-6 border"
           style={{
