@@ -7,6 +7,7 @@ import rankingRouter from "./ranking";
 import dashboardRouter from "./dashboard";
 import syncRouter from "./sync";
 import adminUsersRouter from "./adminUsers";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(rankingRouter);
 router.use(dashboardRouter);
 router.use(syncRouter);
 router.use(adminUsersRouter);
+router.use(storageRouter);
 
 export default router;

@@ -6,12 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  isAdmin: boolean;
+export interface UpdateProfileInput {
+  /** @minLength 2 */
+  name?: string;
   /** @nullable */
   avatarUrl?: string | null;
-  createdAt: string;
 }

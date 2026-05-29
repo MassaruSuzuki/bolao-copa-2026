@@ -25,4 +25,8 @@ export * from './predictionInput';
 export * from './predictionWithUser';
 export * from './rankingEntry';
 export * from './registerInput';
+export * from './requestUploadUrlBody';
+export * from './requestUploadUrlResponse';
+export * from './requestUploadUrlResponseMetadata';
+export * from './updateProfileInput';
 export * from './user';

@@ -16,6 +16,7 @@ import AoVivoPage from "@/pages/ao-vivo";
 import TabelaPage from "@/pages/tabela";
 import AdminPage from "@/pages/admin";
 import RulesPage from "@/pages/rules";
+import ProfilePage from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -67,6 +68,7 @@ function AppRoutes() {
       <Route path="/tabela" component={() => <ProtectedRoute><TabelaPage /></ProtectedRoute>} />
       <Route path="/admin" component={() => <ProtectedRoute><AdminPage /></ProtectedRoute>} />
       <Route path="/rules" component={() => <ProtectedRoute><RulesPage /></ProtectedRoute>} />
+      <Route path="/profile" component={() => <ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route component={NotFound} />
     </Switch>
   );

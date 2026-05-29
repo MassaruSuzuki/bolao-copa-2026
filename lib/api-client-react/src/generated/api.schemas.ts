@@ -14,7 +14,34 @@ export interface User {
   name: string;
   email: string;
   isAdmin: boolean;
+  /** @nullable */
+  avatarUrl?: string | null;
   createdAt: string;
+}
+
+export interface UpdateProfileInput {
+  /** @minLength 2 */
+  name?: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
+export interface RequestUploadUrlBody {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export type RequestUploadUrlResponseMetadata = {
+  name: string;
+  size: number;
+  contentType: string;
+};
+
+export interface RequestUploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata: RequestUploadUrlResponseMetadata;
 }
 
 export interface RegisterInput {
@@ -156,6 +183,8 @@ export interface PredictionInput {
 export interface RankingEntry {
   userId: number;
   name: string;
+  /** @nullable */
+  avatarUrl?: string | null;
   totalPoints: number;
   exactScores: number;
   correctResults: number;
@@ -166,6 +195,8 @@ export interface RankingEntry {
 export interface LiveRankingEntry {
   userId: number;
   name: string;
+  /** @nullable */
+  avatarUrl?: string | null;
   basePoints: number;
   liveBonus: number;
   projectedTotal: number;

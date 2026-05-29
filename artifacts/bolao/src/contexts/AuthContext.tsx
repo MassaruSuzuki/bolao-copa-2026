@@ -1,11 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { setAuthTokenGetter, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface User {
   id: number;
   name: string;
   email: string;
   isAdmin: boolean;
+  avatarUrl?: string | null;
   createdAt: string;
 }
 
@@ -15,6 +17,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
+  refreshUser: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -24,6 +27,7 @@ const TOKEN_KEY = "bolao_token";
 function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState<User | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
@@ -53,8 +57,12 @@ function AuthProvider({ children }: { children: ReactNode }) {
     setAuthTokenGetter(() => null);
   };
 
+  const refreshUser = () => {
+    queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading: !!token && isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading: !!token && isLoading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,6 @@
 import { useParams, useLocation } from "wouter";
 import { useGetMatch, getGetMatchQueryKey } from "@workspace/api-client-react";
-import { Layout } from "@/components/Layout";
+import { Layout, UserAvatar } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -313,9 +313,7 @@ export default function MatchDetailPage() {
                       <div className="w-6 flex items-center justify-center flex-shrink-0">
                         <MedalIcon position={idx + 1} />
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-primary">{p.user.name.slice(0, 2).toUpperCase()}</span>
-                      </div>
+                      <UserAvatar name={p.user.name} avatarUrl={(p.user as { avatarUrl?: string | null }).avatarUrl} size={8} textSize="xs" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-medium text-foreground truncate">{p.user.name}</span>

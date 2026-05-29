@@ -9,6 +9,8 @@
 export interface RankingEntry {
   userId: number;
   name: string;
+  /** @nullable */
+  avatarUrl?: string | null;
   totalPoints: number;
   exactScores: number;
   correctResults: number;

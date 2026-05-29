@@ -9,6 +9,8 @@
 export interface LiveRankingEntry {
   userId: number;
   name: string;
+  /** @nullable */
+  avatarUrl?: string | null;
   basePoints: number;
   liveBonus: number;
   projectedTotal: number;

@@ -1,2 +1,18 @@
 export * from "./generated/api";
-export * from "./generated/types";
+export type {
+  User,
+  RegisterInput,
+  LoginInput,
+  AuthResponse,
+  Match,
+  MatchWithPredictions,
+  MatchInput,
+  MatchUpdate,
+  Prediction,
+  PredictionWithUser,
+  PredictionInput,
+  RankingEntry,
+  LiveRankingEntry,
+  DashboardSummary,
+  UpdateProfileInput,
+} from "./generated/types";

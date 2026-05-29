@@ -20,6 +20,8 @@ tags:
     description: Ranking operations
   - name: dashboard
     description: Dashboard operations
+  - name: storage
+    description: Object storage operations
 paths:
   /healthz:
     get:
@@ -91,6 +93,46 @@ paths:
                 $ref: "#/components/schemas/User"
         "401":
           description: Unauthorized
+    patch:
+      operationId: updateMe
+      tags: [auth]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+        "400":
+          description: Bad request
 
   /matches:
     get:
@@ -304,6 +346,8 @@ components:
           type: string
         isAdmin:
           type: boolean
+        avatarUrl:
+          type: ["string", "null"]
         createdAt:
           type: string
       required:
@@ -312,6 +356,54 @@ components:
         - email
         - isAdmin
         - createdAt
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        avatarUrl:
+          type: ["string", "null"]
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+            size:
+              type: integer
+            contentType:
+              type: string
+          required:
+            - name
+            - size
+            - contentType
+      required:
+        - uploadURL
+        - objectPath
+        - metadata
 
     RegisterInput:
       type: object
@@ -543,6 +635,8 @@ components:
           type: integer
         name:
           type: string
+        avatarUrl:
+          type: ["string", "null"]
         totalPoints:
           type: integer
         exactScores:
@@ -569,6 +663,8 @@ components:
           type: integer
         name:
           type: string
+        avatarUrl:
+          type: ["string", "null"]
         basePoints:
           type: integer
         liveBonus:

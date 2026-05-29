@@ -5,7 +5,7 @@ import {
   useListMatches,
   getListMatchesQueryKey,
 } from "@workspace/api-client-react";
-import { Layout } from "@/components/Layout";
+import { Layout, UserAvatar } from "@/components/Layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -215,17 +215,7 @@ export default function TabelaPage() {
 
                     {/* Avatar + Name */}
                     <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={cn(
-                          "w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0",
-                          isMe ? "text-[#1a1200]" : "bg-white/[0.08] text-white/60"
-                        )}
-                        style={isMe ? {
-                          background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
-                        } : {}}
-                      >
-                        {entry.name.slice(0, 2).toUpperCase()}
-                      </div>
+                      <UserAvatar name={entry.name} avatarUrl={(entry as { avatarUrl?: string | null }).avatarUrl} size={7} textSize="xs" />
                       <p className={cn(
                         "text-sm font-semibold truncate",
                         isMe ? "text-primary" : "text-foreground"

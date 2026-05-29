@@ -65,6 +65,7 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
     return {
       userId: user.id,
       name: user.name,
+      avatarUrl: user.avatarUrl ?? null,
       totalPoints,
       exactScores,
       correctResults,
@@ -136,6 +137,7 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
     return {
       userId: user.id,
       name: user.name,
+      avatarUrl: user.avatarUrl ?? null,
       basePoints,
       liveBonus,
       projectedTotal: basePoints + liveBonus,

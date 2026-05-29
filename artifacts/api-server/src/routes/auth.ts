@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { RegisterBody, LoginBody } from "@workspace/api-zod";
+import { RegisterBody, LoginBody, UpdateMeBody } from "@workspace/api-zod";
 import { requireAuth, signToken } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -67,6 +67,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       name: user.name,
       email: user.email,
       isAdmin: user.isAdmin,
+      avatarUrl: user.avatarUrl ?? null,
       createdAt: user.createdAt.toISOString(),
     },
   });
@@ -83,7 +84,40 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     name: user.name,
     email: user.email,
     isAdmin: user.isAdmin,
+    avatarUrl: user.avatarUrl ?? null,
     createdAt: user.createdAt.toISOString(),
+  });
+});
+
+router.patch("/auth/me", requireAuth, async (req, res): Promise<void> => {
+  const parsed = UpdateMeBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const updates: Partial<{ name: string; avatarUrl: string | null }> = {};
+  if (parsed.data.name !== undefined) updates.name = parsed.data.name;
+  if (parsed.data.avatarUrl !== undefined) updates.avatarUrl = parsed.data.avatarUrl;
+
+  const [updated] = await db
+    .update(usersTable)
+    .set(updates)
+    .where(eq(usersTable.id, req.user!.userId))
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    email: updated.email,
+    isAdmin: updated.isAdmin,
+    avatarUrl: updated.avatarUrl ?? null,
+    createdAt: updated.createdAt.toISOString(),
   });
 });
 

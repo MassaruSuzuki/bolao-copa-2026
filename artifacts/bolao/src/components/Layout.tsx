@@ -15,6 +15,30 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function UserAvatar({ name, avatarUrl, size = 8, textSize = "xs" }: { name?: string; avatarUrl?: string | null; size?: number; textSize?: string }) {
+  const initials = (name ?? "?").slice(0, 2).toUpperCase();
+  const sizeClass = `w-${size} h-${size}`;
+  if (avatarUrl) {
+    return (
+      <img
+        src={`/api/storage${avatarUrl}`}
+        alt={name}
+        className={`${sizeClass} rounded-full object-cover flex-shrink-0`}
+      />
+    );
+  }
+  return (
+    <div
+      className={`${sizeClass} rounded-full flex items-center justify-center flex-shrink-0 text-${textSize} font-black`}
+      style={{ background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)", color: "#1a1200" }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+export { UserAvatar };
+
 const navItems = [
   { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -102,18 +126,15 @@ export function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className="px-3 py-4 border-t" style={{ borderColor: "rgba(201,162,39,0.10)" }}>
-          <div className="flex items-center gap-3 px-3 py-2 mb-1 rounded-xl hover:bg-white/5 transition-colors">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
-              style={{ background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)", color: "#1a1200" }}
-            >
-              {user?.name?.slice(0, 2).toUpperCase()}
+          <Link href="/profile">
+            <div className="flex items-center gap-3 px-3 py-2 mb-1 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+              <UserAvatar name={user?.name} avatarUrl={user?.avatarUrl} size={8} textSize="xs" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+                <p className="text-xs text-white/40 truncate">Editar perfil</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-              <p className="text-xs text-white/40 truncate">{user?.email}</p>
-            </div>
-          </div>
+          </Link>
           <Button
             variant="ghost"
             size="sm"
@@ -148,14 +169,11 @@ export function Layout({ children }: LayoutProps) {
               <span className="font-black text-sm text-white">Bolão da Copa</span>
             </div>
           </Link>
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black cursor-pointer"
-            style={{ background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)", color: "#1a1200" }}
-            onClick={logout}
-            title="Sair"
-          >
-            {user?.name?.slice(0, 2).toUpperCase()}
-          </div>
+          <Link href="/profile">
+            <div className="cursor-pointer">
+              <UserAvatar name={user?.name} avatarUrl={user?.avatarUrl} size={8} textSize="xs" />
+            </div>
+          </Link>
         </div>
       </div>
 

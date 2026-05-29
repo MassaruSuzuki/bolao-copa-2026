@@ -6,12 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface User {
-  id: number;
+export type RequestUploadUrlResponseMetadata = {
   name: string;
-  email: string;
-  isAdmin: boolean;
-  /** @nullable */
-  avatarUrl?: string | null;
-  createdAt: string;
-}
+  size: number;
+  contentType: string;
+};

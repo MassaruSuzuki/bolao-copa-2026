@@ -48,6 +48,7 @@ export const LoginResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "isAdmin": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 })
@@ -61,7 +62,50 @@ export const GetMeResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "isAdmin": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update current user profile
+ */
+export const updateMeBodyNameMin = 2;
+
+
+
+export const UpdateMeBody = zod.object({
+  "name": zod.string().min(updateMeBodyNameMin).optional(),
+  "avatarUrl": zod.string().nullish()
+})
+
+export const UpdateMeResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "isAdmin": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
 })
 
 
@@ -132,6 +176,7 @@ export const GetMatchResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "isAdmin": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 }))
@@ -192,6 +237,7 @@ export const ListMatchPredictionsResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "isAdmin": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 })
@@ -245,6 +291,7 @@ export const ListMyPredictionsResponse = zod.array(ListMyPredictionsResponseItem
 export const GetRankingResponseItem = zod.object({
   "userId": zod.number(),
   "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
   "totalPoints": zod.number(),
   "exactScores": zod.number(),
   "correctResults": zod.number(),
@@ -260,6 +307,7 @@ export const GetRankingResponse = zod.array(GetRankingResponseItem)
 export const GetLiveRankingResponseItem = zod.object({
   "userId": zod.number(),
   "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
   "basePoints": zod.number(),
   "liveBonus": zod.number(),
   "projectedTotal": zod.number(),
@@ -308,6 +356,7 @@ export const GetDashboardResponse = zod.object({
   "topRanking": zod.array(zod.object({
   "userId": zod.number(),
   "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
   "totalPoints": zod.number(),
   "exactScores": zod.number(),
   "correctResults": zod.number(),
