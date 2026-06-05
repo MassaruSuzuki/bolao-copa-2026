@@ -7,7 +7,7 @@ import {
   useListMatches,
   getListMatchesQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { AnimatedRankingList } from "@/components/AnimatedRankingList";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +16,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import type { RankingEntry } from "@workspace/api-client-react";
 
-// Convert base RankingEntry to LiveRankingEntry shape for the shared component
 function toLiveShape(entries: RankingEntry[] | undefined) {
   return (entries ?? []).map((e) => ({
     userId: e.userId,
@@ -34,6 +33,159 @@ function toLiveShape(entries: RankingEntry[] | undefined) {
   }));
 }
 
+interface MatchParticipant {
+  userId: number;
+  name: string;
+  avatarUrl: string | null;
+  hasPrediction: boolean;
+  predHome: number | null;
+  predAway: number | null;
+  points: number;
+  proximity: number | null;
+}
+
+interface LiveMatchBreakdown {
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeLogo: string | null;
+  awayLogo: string | null;
+  homeScore: number | null;
+  awayScore: number | null;
+  hasScore: boolean;
+  participants: MatchParticipant[];
+}
+
+function useLiveMatchBreakdowns(enabled: boolean) {
+  return useQuery<LiveMatchBreakdown[]>({
+    queryKey: ["ranking-live-matches"],
+    queryFn: async () => {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch("/api/ranking/live-matches", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Erro ao carregar breakdown");
+      return res.json() as Promise<LiveMatchBreakdown[]>;
+    },
+    enabled,
+    refetchInterval: 15_000,
+    staleTime: 0,
+  });
+}
+
+function pointsColor(pts: number, hasScore: boolean) {
+  if (!hasScore) return "text-muted-foreground";
+  if (pts === 3) return "text-yellow-400";
+  if (pts === 1) return "text-primary";
+  return "text-red-400";
+}
+
+function pointsLabel(pts: number, hasScore: boolean) {
+  if (!hasScore) return "—";
+  if (pts === 3) return "+3 exato!";
+  if (pts === 1) return "+1 vencedor";
+  return "0 pts";
+}
+
+function MatchBreakdownCard({ match, currentUserId }: { match: LiveMatchBreakdown; currentUserId?: number }) {
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{
+        border: "1px solid rgba(201,162,39,0.2)",
+      }}
+    >
+      {/* Match header */}
+      <div
+        className="px-4 py-3 flex items-center justify-between"
+        style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.10) 0%, rgba(201,162,39,0.04) 100%)" }}
+      >
+        <div className="flex items-center gap-2 flex-1">
+          {match.homeLogo && (
+            <img src={match.homeLogo} alt={match.homeTeam} className="w-7 h-7 object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
+          <span className="font-bold text-sm text-foreground">{match.homeTeam}</span>
+        </div>
+
+        <div className="text-center px-3 flex-shrink-0">
+          {match.hasScore ? (
+            <span className="text-xl font-black text-primary tabular-nums">
+              {match.homeScore} × {match.awayScore}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground font-semibold">vs</span>
+          )}
+          <div className="flex items-center justify-center gap-1 mt-0.5">
+            <Zap className="w-3 h-3 text-red-400 animate-pulse" />
+            <span className="text-[10px] font-semibold text-red-400">AO VIVO</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <span className="font-bold text-sm text-foreground">{match.awayTeam}</span>
+          {match.awayLogo && (
+            <img src={match.awayLogo} alt={match.awayTeam} className="w-7 h-7 object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
+        </div>
+      </div>
+
+      {/* Participants list */}
+      <div className="divide-y divide-border">
+        {match.participants.map((p, idx) => {
+          const isMe = p.userId === currentUserId;
+          return (
+            <div
+              key={p.userId}
+              className={cn(
+                "flex items-center gap-3 px-4 py-2.5",
+                isMe && "bg-primary/5 border-l-2 border-l-primary"
+              )}
+            >
+              {/* Position */}
+              <span className="text-xs font-bold text-muted-foreground w-5 text-center flex-shrink-0">
+                {p.hasPrediction ? idx + 1 : "—"}
+              </span>
+
+              {/* Avatar */}
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                style={{ background: "rgba(201,162,39,0.15)", color: "hsl(43,74%,52%)" }}
+              >
+                {p.name.slice(0, 2).toUpperCase()}
+              </div>
+
+              {/* Name */}
+              <p className={cn("text-sm font-medium flex-1 min-w-0 truncate", isMe ? "text-primary" : "text-foreground")}>
+                {p.name}
+                {isMe && <span className="text-xs ml-1 text-primary/60">(você)</span>}
+              </p>
+
+              {/* Prediction */}
+              {p.hasPrediction ? (
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    palpite:{" "}
+                    <span className="font-bold text-foreground tabular-nums">
+                      {p.predHome} × {p.predAway}
+                    </span>
+                  </span>
+                  <span className={cn("text-xs font-bold min-w-[70px] text-right", pointsColor(p.points, match.hasScore))}>
+                    {pointsLabel(p.points, match.hasScore)}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground/50 italic flex-shrink-0">sem palpite</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function RankingPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -44,9 +196,6 @@ export default function RankingPage() {
     { query: { queryKey: getListMatchesQueryKey({ status: "live" }), refetchInterval: 10_000 } }
   );
   const hasLiveMatch = (liveMatches?.length ?? 0) > 0;
-  const scoredLiveMatches = (liveMatches ?? []).filter(
-    (m) => m.homeScore != null && m.awayScore != null
-  );
 
   const { data: baseRanking, isLoading: loadingBase } = useGetRanking({
     query: { queryKey: getGetRankingQueryKey(), enabled: !hasLiveMatch },
@@ -60,11 +209,13 @@ export default function RankingPage() {
     },
   });
 
-  // Fast poll during live matches: every 10s refresh live ranking
+  const { data: matchBreakdowns, isLoading: loadingBreakdowns } = useLiveMatchBreakdowns(hasLiveMatch);
+
   useEffect(() => {
     if (hasLiveMatch) {
       pollRef.current = setInterval(() => {
         qc.invalidateQueries({ queryKey: getGetLiveRankingQueryKey() });
+        qc.invalidateQueries({ queryKey: ["ranking-live-matches"] });
       }, 10_000);
     }
     return () => {
@@ -74,16 +225,6 @@ export default function RankingPage() {
 
   const isLoading = hasLiveMatch ? loadingLive : loadingBase;
   const entries = hasLiveMatch ? (liveRanking ?? []) : toLiveShape(baseRanking);
-
-  const firstScoredMatch = scoredLiveMatches[0];
-  const liveScoreInfo = firstScoredMatch
-    ? {
-        home: firstScoredMatch.homeScore as number,
-        away: firstScoredMatch.awayScore as number,
-        homeTeam: firstScoredMatch.homeTeam,
-        awayTeam: firstScoredMatch.awayTeam,
-      }
-    : undefined;
 
   return (
     <Layout>
@@ -102,50 +243,6 @@ export default function RankingPage() {
             </div>
           )}
         </div>
-
-        {/* Live match score banners — all ongoing matches */}
-        {hasLiveMatch && scoredLiveMatches.length > 0 && (
-          <div
-            className="rounded-xl overflow-hidden"
-            style={{
-              border: "1px solid rgba(201,162,39,0.2)",
-            }}
-          >
-            <div className="px-4 py-2 flex items-center justify-between border-b border-white/5"
-              style={{ background: "rgba(201,162,39,0.06)" }}>
-              <div className="flex items-center gap-2">
-                <Zap className="w-3.5 h-3.5 text-primary animate-pulse" />
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Placares ao vivo</p>
-              </div>
-              <p className="text-xs text-muted-foreground">As posições mudam com o placar</p>
-            </div>
-            {scoredLiveMatches.map((m) => (
-              <div
-                key={m.id}
-                className="px-5 py-3 flex items-center justify-between border-b last:border-0 border-white/5"
-                style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.05) 0%, rgba(201,162,39,0.02) 100%)" }}
-              >
-                <div className="flex items-center gap-3">
-                  {m.homeLogo && (
-                    <img src={m.homeLogo} alt={m.homeTeam} className="w-6 h-6 object-contain"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  )}
-                  <span className="text-sm font-semibold text-foreground">{m.homeTeam}</span>
-                </div>
-                <span className="text-primary tabular-nums text-lg font-black px-4">
-                  {m.homeScore} × {m.awayScore}
-                </span>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-foreground">{m.awayTeam}</span>
-                  {m.awayLogo && (
-                    <img src={m.awayLogo} alt={m.awayTeam} className="w-6 h-6 object-contain"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Scoring guide (only when not live) */}
         {!hasLiveMatch && (
@@ -168,27 +265,12 @@ export default function RankingPage() {
           </div>
         )}
 
-        {/* Live legend */}
+        {/* ── Global ranking ── */}
         {hasLiveMatch && (
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="flex gap-0.5">
-                {[0,1,2,3,4].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-yellow-400" />)}
-              </div>
-              <span>Placar exato</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="flex gap-0.5">
-                {[0,1,2,3,4].map(i => <div key={i} className={cn("w-1.5 h-1.5 rounded-full", i < 4 ? "bg-primary" : "bg-muted-foreground/20")} />)}
-              </div>
-              <span>1 gol de distância</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="flex gap-0.5">
-                {[0,1,2,3,4].map(i => <div key={i} className={cn("w-1.5 h-1.5 rounded-full", i < 2 ? "bg-primary/70" : "bg-muted-foreground/20")} />)}
-              </div>
-              <span>Longe</span>
-            </div>
+          <div>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Classificação geral (projetada)
+            </h2>
           </div>
         )}
 
@@ -203,7 +285,6 @@ export default function RankingPage() {
                 entries={entries}
                 currentUserId={user?.id}
                 isLive={hasLiveMatch}
-                liveScore={liveScoreInfo}
               />
             ) : (
               <div className="px-5 py-12 text-center">
@@ -213,6 +294,31 @@ export default function RankingPage() {
                   Os pontos aparecem quando os jogos encerrarem.
                 </p>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Per-match breakdown (only during live) ── */}
+        {hasLiveMatch && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Palpites por jogo
+            </h2>
+
+            {loadingBreakdowns ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
+              </div>
+            ) : (matchBreakdowns ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum jogo ao vivo no momento.</p>
+            ) : (
+              (matchBreakdowns ?? []).map((match) => (
+                <MatchBreakdownCard
+                  key={match.matchId}
+                  match={match}
+                  currentUserId={user?.id}
+                />
+              ))
             )}
           </div>
         )}

@@ -154,4 +154,51 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
   res.json(ranking);
 });
 
+router.get("/ranking/live-matches", requireAuth, async (_req, res): Promise<void> => {
+  const allUsers = await db.select().from(usersTable).where(and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved")));
+  const liveMatches = await db.select().from(matchesTable).where(eq(matchesTable.status, "live"));
+  const allPredictions = await db.select().from(predictionsTable);
+
+  const result = liveMatches.map((match) => {
+    const matchPreds = allPredictions.filter((p) => p.matchId === match.id);
+
+    const participants = allUsers.map((user) => {
+      const pred = matchPreds.find((p) => p.userId === user.id);
+      if (!pred) {
+        return { userId: user.id, name: user.name, avatarUrl: user.avatarUrl ?? null, hasPrediction: false, predHome: null, predAway: null, points: 0, proximity: null };
+      }
+      let points = 0;
+      let proximity: number | null = null;
+      if (match.homeScore !== null && match.awayScore !== null) {
+        points = calcPoints(pred.homeGoals, pred.awayGoals, match.homeScore, match.awayScore);
+        proximity = Math.abs(pred.homeGoals - match.homeScore) + Math.abs(pred.awayGoals - match.awayScore);
+      }
+      return { userId: user.id, name: user.name, avatarUrl: user.avatarUrl ?? null, hasPrediction: true, predHome: pred.homeGoals, predAway: pred.awayGoals, points, proximity };
+    });
+
+    // Sort: with predictions first (by points desc, proximity asc), then no prediction
+    participants.sort((a, b) => {
+      if (a.hasPrediction && !b.hasPrediction) return -1;
+      if (!a.hasPrediction && b.hasPrediction) return 1;
+      if (b.points !== a.points) return b.points - a.points;
+      if (a.proximity !== null && b.proximity !== null) return a.proximity - b.proximity;
+      return a.name.localeCompare(b.name);
+    });
+
+    return {
+      matchId: match.id,
+      homeTeam: match.homeTeam,
+      awayTeam: match.awayTeam,
+      homeLogo: match.homeLogo,
+      awayLogo: match.awayLogo,
+      homeScore: match.homeScore,
+      awayScore: match.awayScore,
+      hasScore: match.homeScore !== null && match.awayScore !== null,
+      participants,
+    };
+  });
+
+  res.json(result);
+});
+
 export default router;
