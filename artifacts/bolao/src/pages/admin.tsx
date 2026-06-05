@@ -53,6 +53,9 @@ function useAdminUsers() {
       if (!res.ok) throw new Error("Erro ao carregar usuários");
       return res.json() as Promise<ParticipantUser[]>;
     },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 }
 
@@ -247,6 +250,12 @@ export default function AdminPage() {
               <p className="text-muted-foreground text-sm">Gerencie participantes e jogos</p>
             </div>
           </div>
+          {activeTab === "participantes" && (
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => qc.invalidateQueries({ queryKey: ["admin-users"] })}>
+              <RefreshCw className="w-4 h-4" />
+              Atualizar
+            </Button>
+          )}
           {activeTab === "jogos" && (
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" onClick={handleSyncLive} disabled={syncingLive} className="gap-2 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10">
