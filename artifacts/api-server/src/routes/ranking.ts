@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, predictionsTable, matchesTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -17,7 +17,7 @@ function calcPoints(
 }
 
 router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
-  const allUsers = await db.select().from(usersTable).where(eq(usersTable.isAdmin, false));
+  const allUsers = await db.select().from(usersTable).where(and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved")));
   const finishedMatches = await db
     .select()
     .from(matchesTable)
@@ -79,7 +79,7 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
 });
 
 router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
-  const allUsers = await db.select().from(usersTable).where(eq(usersTable.isAdmin, false));
+  const allUsers = await db.select().from(usersTable).where(and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved")));
   const finishedMatches = await db
     .select()
     .from(matchesTable)

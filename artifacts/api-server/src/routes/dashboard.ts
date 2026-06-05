@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, matchesTable, usersTable, predictionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 function calcPoints(
@@ -17,7 +17,7 @@ function calcPoints(
 const router: IRouter = Router();
 
 router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
-  const allUsers = await db.select().from(usersTable).where(eq(usersTable.isAdmin, false));
+  const allUsers = await db.select().from(usersTable).where(and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved")));
   const allMatches = await db.select().from(matchesTable).orderBy(matchesTable.matchDate);
   const allPredictions = await db.select().from(predictionsTable);
 

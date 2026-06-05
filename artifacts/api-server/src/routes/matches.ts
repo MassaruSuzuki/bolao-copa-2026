@@ -71,7 +71,7 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
       userCreatedAt: usersTable.createdAt,
     })
     .from(predictionsTable)
-    .innerJoin(usersTable, eq(predictionsTable.userId, usersTable.id))
+    .innerJoin(usersTable, and(eq(predictionsTable.userId, usersTable.id), eq(usersTable.status, "approved")))
     .where(eq(predictionsTable.matchId, params.data.id));
 
   res.json({
@@ -153,7 +153,7 @@ router.get("/matches/:id/predictions", requireAuth, async (req, res): Promise<vo
       userCreatedAt: usersTable.createdAt,
     })
     .from(predictionsTable)
-    .innerJoin(usersTable, eq(predictionsTable.userId, usersTable.id))
+    .innerJoin(usersTable, and(eq(predictionsTable.userId, usersTable.id), eq(usersTable.status, "approved")))
     .where(eq(predictionsTable.matchId, id));
 
   res.json(
