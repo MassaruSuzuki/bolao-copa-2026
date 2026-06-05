@@ -44,7 +44,9 @@ export default function RankingPage() {
     { query: { queryKey: getListMatchesQueryKey({ status: "live" }), refetchInterval: 10_000 } }
   );
   const hasLiveMatch = (liveMatches?.length ?? 0) > 0;
-  const liveMatch = liveMatches?.[0];
+  const scoredLiveMatches = (liveMatches ?? []).filter(
+    (m) => m.homeScore != null && m.awayScore != null
+  );
 
   const { data: baseRanking, isLoading: loadingBase } = useGetRanking({
     query: { queryKey: getGetRankingQueryKey(), enabled: !hasLiveMatch },
@@ -73,12 +75,13 @@ export default function RankingPage() {
   const isLoading = hasLiveMatch ? loadingLive : loadingBase;
   const entries = hasLiveMatch ? (liveRanking ?? []) : toLiveShape(baseRanking);
 
-  const liveScoreInfo = liveMatch && liveMatch.homeScore != null && liveMatch.awayScore != null
+  const firstScoredMatch = scoredLiveMatches[0];
+  const liveScoreInfo = firstScoredMatch
     ? {
-        home: liveMatch.homeScore as number,
-        away: liveMatch.awayScore as number,
-        homeTeam: liveMatch.homeTeam,
-        awayTeam: liveMatch.awayTeam,
+        home: firstScoredMatch.homeScore as number,
+        away: firstScoredMatch.awayScore as number,
+        homeTeam: firstScoredMatch.homeTeam,
+        awayTeam: firstScoredMatch.awayTeam,
       }
     : undefined;
 
@@ -100,31 +103,47 @@ export default function RankingPage() {
           )}
         </div>
 
-        {/* Live match score banner */}
-        {hasLiveMatch && liveScoreInfo && (
+        {/* Live match score banners — all ongoing matches */}
+        {hasLiveMatch && scoredLiveMatches.length > 0 && (
           <div
-            className="rounded-xl px-5 py-4 flex items-center justify-between"
+            className="rounded-xl overflow-hidden"
             style={{
-              background: "linear-gradient(135deg, rgba(201,162,39,0.08) 0%, rgba(201,162,39,0.03) 100%)",
               border: "1px solid rgba(201,162,39,0.2)",
             }}
           >
-            <div className="flex items-center gap-3">
-              <Zap className="w-4 h-4 text-primary animate-pulse" />
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Placar atual</p>
-                <p className="text-sm font-bold text-foreground mt-0.5">
-                  {liveScoreInfo.homeTeam}{" "}
-                  <span className="text-primary tabular-nums text-lg font-black">
-                    {liveScoreInfo.home} x {liveScoreInfo.away}
-                  </span>{" "}
-                  {liveScoreInfo.awayTeam}
-                </p>
+            <div className="px-4 py-2 flex items-center justify-between border-b border-white/5"
+              style={{ background: "rgba(201,162,39,0.06)" }}>
+              <div className="flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5 text-primary animate-pulse" />
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Placares ao vivo</p>
               </div>
+              <p className="text-xs text-muted-foreground">As posições mudam com o placar</p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              As posições mudam com o placar
-            </p>
+            {scoredLiveMatches.map((m) => (
+              <div
+                key={m.id}
+                className="px-5 py-3 flex items-center justify-between border-b last:border-0 border-white/5"
+                style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.05) 0%, rgba(201,162,39,0.02) 100%)" }}
+              >
+                <div className="flex items-center gap-3">
+                  {m.homeLogo && (
+                    <img src={m.homeLogo} alt={m.homeTeam} className="w-6 h-6 object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  )}
+                  <span className="text-sm font-semibold text-foreground">{m.homeTeam}</span>
+                </div>
+                <span className="text-primary tabular-nums text-lg font-black px-4">
+                  {m.homeScore} × {m.awayScore}
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-foreground">{m.awayTeam}</span>
+                  {m.awayLogo && (
+                    <img src={m.awayLogo} alt={m.awayTeam} className="w-6 h-6 object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

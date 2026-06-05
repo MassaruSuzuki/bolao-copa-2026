@@ -90,10 +90,10 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
     .where(eq(matchesTable.status, "live"));
   const allPredictions = await db.select().from(predictionsTable);
 
-  // Pick the first live match with a score (the "active" one)
-  const liveMatch = liveMatches.find(
+  // Only live matches that already have a score
+  const scoredLiveMatches = liveMatches.filter(
     (m) => m.homeScore !== null && m.awayScore !== null
-  ) ?? liveMatches[0] ?? null;
+  );
 
   const ranking = allUsers.map((user) => {
     // Base points from finished matches
@@ -107,31 +107,22 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
       basePoints += calcPoints(pred.homeGoals, pred.awayGoals, match.homeScore, match.awayScore);
     }
 
-    // Projected live bonus
+    // Sum live bonus across ALL live matches with scores
     let liveBonus = 0;
-    let predHome: number | null = null;
-    let predAway: number | null = null;
-    let currentHome: number | null = null;
-    let currentAway: number | null = null;
-    let proximity: number | null = null;
+    let proximityTotal: number | null = null;
     let hasPrediction = false;
 
-    if (liveMatch) {
+    for (const liveMatch of scoredLiveMatches) {
       const pred = allPredictions.find(
         (p) => p.userId === user.id && p.matchId === liveMatch.id
       );
-      if (pred) {
-        hasPrediction = true;
-        predHome = pred.homeGoals;
-        predAway = pred.awayGoals;
-        currentHome = liveMatch.homeScore ?? null;
-        currentAway = liveMatch.awayScore ?? null;
-        if (currentHome !== null && currentAway !== null) {
-          liveBonus = calcPoints(predHome, predAway, currentHome, currentAway);
-          // Proximity: total goal difference (lower = closer to exact)
-          proximity = Math.abs(predHome - currentHome) + Math.abs(predAway - currentAway);
-        }
-      }
+      if (!pred) continue;
+      hasPrediction = true;
+      const h = liveMatch.homeScore as number;
+      const a = liveMatch.awayScore as number;
+      liveBonus += calcPoints(pred.homeGoals, pred.awayGoals, h, a);
+      const dist = Math.abs(pred.homeGoals - h) + Math.abs(pred.awayGoals - a);
+      proximityTotal = (proximityTotal ?? 0) + dist;
     }
 
     return {
@@ -141,12 +132,12 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
       basePoints,
       liveBonus,
       projectedTotal: basePoints + liveBonus,
-      liveMatchId: liveMatch?.id ?? null,
-      predHome,
-      predAway,
-      currentHome,
-      currentAway,
-      proximity,
+      liveMatchId: scoredLiveMatches[0]?.id ?? null,
+      predHome: null,
+      predAway: null,
+      currentHome: null,
+      currentAway: null,
+      proximity: proximityTotal,
       hasPrediction,
     };
   });
