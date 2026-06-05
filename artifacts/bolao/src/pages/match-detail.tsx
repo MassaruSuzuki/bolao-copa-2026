@@ -126,7 +126,7 @@ export default function MatchDetailPage() {
 
   return (
     <Layout>
-      <div className="p-6 space-y-6 max-w-2xl">
+      <div className="p-6 space-y-6 max-w-2xl mx-auto">
         <button
           onClick={() => setLocation("/matches")}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
