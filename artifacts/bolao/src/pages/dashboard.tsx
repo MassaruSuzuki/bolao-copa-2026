@@ -58,7 +58,6 @@ export default function DashboardPage() {
     { query: { queryKey: getListMatchesQueryKey({ status: "live" }), refetchInterval: 10_000 } }
   );
   const hasLiveMatch = (liveMatches?.length ?? 0) > 0;
-  const liveMatch = liveMatches?.[0];
 
   const { data: baseRanking } = useGetRanking({
     query: { queryKey: getGetRankingQueryKey(), enabled: !hasLiveMatch },
@@ -198,22 +197,22 @@ export default function DashboardPage() {
               <Link href="/ranking" className="text-xs text-primary hover:underline">Ver completo</Link>
             </div>
 
-            {/* Live score mini-banner */}
-            {hasLiveMatch && liveMatch && liveMatch.homeScore != null && liveMatch.awayScore != null && (
-              <div className="px-4 py-2.5 flex items-center justify-between border-b border-border/50"
+            {/* Live score mini-banners — one per live match */}
+            {hasLiveMatch && liveMatches?.filter((m) => m.homeScore != null && m.awayScore != null).map((m) => (
+              <div key={m.id} className="px-4 py-2.5 flex items-center justify-between border-b border-border/50"
                 style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.07) 0%, rgba(201,162,39,0.02) 100%)" }}>
                 <div className="flex items-center gap-2">
                   <Zap className="w-3.5 h-3.5 text-primary animate-pulse flex-shrink-0" />
                   <p className="text-xs font-semibold text-foreground">
-                    {liveMatch.homeTeam}{" "}
+                    {m.homeTeam}{" "}
                     <span className="text-primary tabular-nums font-black">
-                      {liveMatch.homeScore} x {liveMatch.awayScore}
+                      {m.homeScore} x {m.awayScore}
                     </span>{" "}
-                    {liveMatch.awayTeam}
+                    {m.awayTeam}
                   </p>
                 </div>
               </div>
-            )}
+            ))}
 
             {rankingLoading ? (
               <div className="space-y-px">
