@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { setAuthTokenGetter, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -29,12 +29,40 @@ function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const queryClient = useQueryClient();
 
+  const logout = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setUser(null);
+    setAuthTokenGetter(() => null);
+    queryClient.clear();
+  }, [queryClient]);
+
   useEffect(() => {
     setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
   }, []);
 
-  const { data: meData, isLoading } = useGetMe({
-    query: { enabled: !!token, retry: false, queryKey: getGetMeQueryKey() },
+  // Intercept all fetch calls — if any API response is 401, auto-logout
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      if (response.status === 401 && localStorage.getItem(TOKEN_KEY)) {
+        logout();
+      }
+      return response;
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [logout]);
+
+  const { data: meData, isLoading, isError } = useGetMe({
+    query: {
+      enabled: !!token,
+      retry: false,
+      queryKey: getGetMeQueryKey(),
+      refetchInterval: 30_000,
+    },
   });
 
   useEffect(() => {
@@ -43,18 +71,18 @@ function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [meData]);
 
+  // If /me returns an error while we have a token, the account was rejected/deleted — logout
+  useEffect(() => {
+    if (isError && token) {
+      logout();
+    }
+  }, [isError, token, logout]);
+
   const login = (newToken: string, newUser: User) => {
     localStorage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
     setUser(newUser);
     setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
-  };
-
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
-    setAuthTokenGetter(() => null);
   };
 
   const refreshUser = () => {
