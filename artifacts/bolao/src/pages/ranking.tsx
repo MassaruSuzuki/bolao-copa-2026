@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useGetRanking,
   getGetRankingQueryKey,
@@ -11,7 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { AnimatedRankingList } from "@/components/AnimatedRankingList";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Zap, Radio } from "lucide-react";
+import { Trophy, Zap, Radio, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import type { RankingEntry } from "@workspace/api-client-react";
@@ -87,25 +87,26 @@ function pointsLabel(pts: number, hasScore: boolean) {
   return "0 pts";
 }
 
-function MatchBreakdownCard({ match, currentUserId }: { match: LiveMatchBreakdown; currentUserId?: number }) {
+function MatchBreakdownCard({ match, currentUserId, defaultOpen = false }: { match: LiveMatchBreakdown; currentUserId?: number; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+
   return (
     <div
       className="rounded-xl overflow-hidden"
-      style={{
-        border: "1px solid rgba(201,162,39,0.2)",
-      }}
+      style={{ border: "1px solid rgba(201,162,39,0.2)" }}
     >
-      {/* Match header */}
-      <div
-        className="px-4 py-3 flex items-center justify-between"
+      {/* Clickable header */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-4 py-3 flex items-center justify-between text-left transition-colors hover:bg-white/5"
         style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.10) 0%, rgba(201,162,39,0.04) 100%)" }}
       >
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           {match.homeLogo && (
-            <img src={match.homeLogo} alt={match.homeTeam} className="w-7 h-7 object-contain"
+            <img src={match.homeLogo} alt={match.homeTeam} className="w-7 h-7 object-contain flex-shrink-0"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}
-          <span className="font-bold text-sm text-foreground">{match.homeTeam}</span>
+          <span className="font-bold text-sm text-foreground truncate">{match.homeTeam}</span>
         </div>
 
         <div className="text-center px-3 flex-shrink-0">
@@ -122,66 +123,67 @@ function MatchBreakdownCard({ match, currentUserId }: { match: LiveMatchBreakdow
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <span className="font-bold text-sm text-foreground">{match.awayTeam}</span>
+        <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
+          <span className="font-bold text-sm text-foreground truncate">{match.awayTeam}</span>
           {match.awayLogo && (
-            <img src={match.awayLogo} alt={match.awayTeam} className="w-7 h-7 object-contain"
+            <img src={match.awayLogo} alt={match.awayTeam} className="w-7 h-7 object-contain flex-shrink-0"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}
+          <ChevronDown
+            className={cn("w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ml-1", open && "rotate-180")}
+          />
         </div>
-      </div>
+      </button>
 
-      {/* Participants list */}
-      <div className="divide-y divide-border">
-        {match.participants.map((p, idx) => {
-          const isMe = p.userId === currentUserId;
-          return (
-            <div
-              key={p.userId}
-              className={cn(
-                "flex items-center gap-3 px-4 py-2.5",
-                isMe && "bg-primary/5 border-l-2 border-l-primary"
-              )}
-            >
-              {/* Position */}
-              <span className="text-xs font-bold text-muted-foreground w-5 text-center flex-shrink-0">
-                {p.hasPrediction ? idx + 1 : "—"}
-              </span>
-
-              {/* Avatar */}
+      {/* Collapsible participants list */}
+      {open && (
+        <div className="divide-y divide-border border-t border-white/5">
+          {match.participants.map((p, idx) => {
+            const isMe = p.userId === currentUserId;
+            return (
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                style={{ background: "rgba(201,162,39,0.15)", color: "hsl(43,74%,52%)" }}
+                key={p.userId}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5",
+                  isMe && "bg-primary/5 border-l-2 border-l-primary"
+                )}
               >
-                {p.name.slice(0, 2).toUpperCase()}
-              </div>
+                <span className="text-xs font-bold text-muted-foreground w-5 text-center flex-shrink-0">
+                  {p.hasPrediction ? idx + 1 : "—"}
+                </span>
 
-              {/* Name */}
-              <p className={cn("text-sm font-medium flex-1 min-w-0 truncate", isMe ? "text-primary" : "text-foreground")}>
-                {p.name}
-                {isMe && <span className="text-xs ml-1 text-primary/60">(você)</span>}
-              </p>
-
-              {/* Prediction */}
-              {p.hasPrediction ? (
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="text-xs text-muted-foreground">
-                    palpite:{" "}
-                    <span className="font-bold text-foreground tabular-nums">
-                      {p.predHome} × {p.predAway}
-                    </span>
-                  </span>
-                  <span className={cn("text-xs font-bold min-w-[70px] text-right", pointsColor(p.points, match.hasScore))}>
-                    {pointsLabel(p.points, match.hasScore)}
-                  </span>
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                  style={{ background: "rgba(201,162,39,0.15)", color: "hsl(43,74%,52%)" }}
+                >
+                  {p.name.slice(0, 2).toUpperCase()}
                 </div>
-              ) : (
-                <span className="text-xs text-muted-foreground/50 italic flex-shrink-0">sem palpite</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+
+                <p className={cn("text-sm font-medium flex-1 min-w-0 truncate", isMe ? "text-primary" : "text-foreground")}>
+                  {p.name}
+                  {isMe && <span className="text-xs ml-1 text-primary/60">(você)</span>}
+                </p>
+
+                {p.hasPrediction ? (
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs text-muted-foreground">
+                      palpite:{" "}
+                      <span className="font-bold text-foreground tabular-nums">
+                        {p.predHome} × {p.predAway}
+                      </span>
+                    </span>
+                    <span className={cn("text-xs font-bold min-w-[70px] text-right", pointsColor(p.points, match.hasScore))}>
+                      {pointsLabel(p.points, match.hasScore)}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground/50 italic flex-shrink-0">sem palpite</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -312,11 +314,12 @@ export default function RankingPage() {
             ) : (matchBreakdowns ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum jogo ao vivo no momento.</p>
             ) : (
-              (matchBreakdowns ?? []).map((match) => (
+              (matchBreakdowns ?? []).map((match, idx) => (
                 <MatchBreakdownCard
                   key={match.matchId}
                   match={match}
                   currentUserId={user?.id}
+                  defaultOpen={idx === 0}
                 />
               ))
             )}
