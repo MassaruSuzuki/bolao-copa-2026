@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useListMatches, getListMatchesQueryKey, useCreateMatch, useUpdateMatch } from "@workspace/api-client-react";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,13 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Plus, Pencil, Shield, RefreshCw, Zap, Users, CheckCircle, XCircle, Clock } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 
 type MatchStatus = "upcoming" | "live" | "finished";
+type AdminTab = "jogos" | "participantes";
 
 interface EditState {
   id: number;
@@ -40,8 +40,6 @@ interface ParticipantUser {
   createdAt: string;
 }
 
-type AdminTab = "jogos" | "participantes";
-
 function useAdminUsers() {
   return useQuery<ParticipantUser[]>({
     queryKey: ["admin-users"],
@@ -50,7 +48,9 @@ function useAdminUsers() {
       const res = await fetch("/api/admin/users", {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error("Erro ao carregar usuários");
+
       return res.json() as Promise<ParticipantUser[]>;
     },
     refetchInterval: 30_000,
@@ -65,7 +65,20 @@ export default function AdminPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>("participantes");
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const saved = localStorage.getItem("admin_tab");
+
+    if (saved === "jogos" || saved === "participantes") {
+      return saved;
+    }
+
+    return "participantes";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("admin_tab", activeTab);
+  }, [activeTab]);
+
   const [showCreate, setShowCreate] = useState(false);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -75,82 +88,12 @@ export default function AdminPage() {
   const { data: participants, isLoading: loadingUsers } = useAdminUsers();
   const pendingCount = (participants ?? []).filter((u) => u.status === "pending").length;
 
-  const handleSyncMatches = async () => {
-    setSyncing(true);
-    try {
-      const token = localStorage.getItem("bolao_token");
-      const res = await fetch("/api/admin/sync-matches", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json() as { created?: number; updated?: number; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Erro");
-      toast({ title: "Sincronizado!", description: `${data.created} criados, ${data.updated} atualizados` });
-      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-    } catch (err) {
-      toast({ title: "Erro ao sincronizar", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleSyncLive = async () => {
-    setSyncingLive(true);
-    try {
-      const token = localStorage.getItem("bolao_token");
-      const res = await fetch("/api/admin/sync-live", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json() as { updated?: number; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Erro");
-      toast({ title: "Placares atualizados!", description: `${data.updated} jogos atualizados` });
-      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-    } catch (err) {
-      toast({ title: "Erro ao atualizar placares", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
-    } finally {
-      setSyncingLive(false);
-    }
-  };
-
-  const handleApprove = async (userId: number) => {
-    setProcessingUser(userId);
-    try {
-      const token = localStorage.getItem("bolao_token");
-      const res = await fetch(`/api/admin/users/${userId}/approve`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Erro ao aprovar");
-      toast({ title: "Participante aprovado!" });
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
-    } catch (err) {
-      toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
-    } finally {
-      setProcessingUser(null);
-    }
-  };
-
-  const handleReject = async (userId: number) => {
-    setProcessingUser(userId);
-    try {
-      const token = localStorage.getItem("bolao_token");
-      const res = await fetch(`/api/admin/users/${userId}/reject`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Erro ao recusar");
-      toast({ title: "Participante recusado." });
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
-    } catch (err) {
-      toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
-    } finally {
-      setProcessingUser(null);
-    }
-  };
-
   const [newMatch, setNewMatch] = useState({
-    homeTeam: "", awayTeam: "", homeLogo: "", awayLogo: "", matchDate: "",
+    homeTeam: "",
+    awayTeam: "",
+    homeLogo: "",
+    awayLogo: "",
+    matchDate: "",
   });
 
   const { data: matches, isLoading: loadingMatches } = useListMatches(undefined, {
@@ -165,29 +108,164 @@ export default function AdminPage() {
     return null;
   }
 
+  const handleSyncMatches = async () => {
+    setSyncing(true);
+
+    try {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch("/api/admin/sync-matches", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json() as { created?: number; updated?: number; error?: string };
+
+      if (!res.ok) throw new Error(data.error ?? "Erro");
+
+      toast({
+        title: "Sincronizado!",
+        description: `${data.created} criados, ${data.updated} atualizados`,
+      });
+
+      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    } catch (err) {
+      toast({
+        title: "Erro ao sincronizar",
+        description: err instanceof Error ? err.message : "Erro",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSyncLive = async () => {
+    setSyncingLive(true);
+
+    try {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch("/api/admin/sync-live", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json() as { updated?: number; error?: string };
+
+      if (!res.ok) throw new Error(data.error ?? "Erro");
+
+      toast({
+        title: "Placares atualizados!",
+        description: `${data.updated} jogos atualizados`,
+      });
+
+      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    } catch (err) {
+      toast({
+        title: "Erro ao atualizar placares",
+        description: err instanceof Error ? err.message : "Erro",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingLive(false);
+    }
+  };
+
+  const handleApprove = async (userId: number) => {
+    setProcessingUser(userId);
+
+    try {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch(`/api/admin/users/${userId}/approve`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Erro ao aprovar");
+
+      toast({ title: "Participante aprovado!" });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: err instanceof Error ? err.message : "Erro",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingUser(null);
+    }
+  };
+
+  const handleReject = async (userId: number) => {
+    setProcessingUser(userId);
+
+    try {
+      const token = localStorage.getItem("bolao_token");
+      const res = await fetch(`/api/admin/users/${userId}/reject`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Erro ao recusar");
+
+      toast({ title: "Participante recusado." });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: err instanceof Error ? err.message : "Erro",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingUser(null);
+    }
+  };
+
   const handleCreate = () => {
     if (!newMatch.homeTeam || !newMatch.awayTeam || !newMatch.matchDate) {
-      toast({ title: "Campos obrigatórios", description: "Preencha times e data", variant: "destructive" });
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha times e data",
+        variant: "destructive",
+      });
       return;
     }
+
     createMutation.mutate(
-      { data: { ...newMatch, matchDate: new Date(newMatch.matchDate).toISOString() } },
+      {
+        data: {
+          ...newMatch,
+          matchDate: new Date(newMatch.matchDate).toISOString(),
+        },
+      },
       {
         onSuccess: () => {
           toast({ title: "Jogo criado!" });
           qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
           setShowCreate(false);
-          setNewMatch({ homeTeam: "", awayTeam: "", homeLogo: "", awayLogo: "", matchDate: "" });
+          setNewMatch({
+            homeTeam: "",
+            awayTeam: "",
+            homeLogo: "",
+            awayLogo: "",
+            matchDate: "",
+          });
         },
         onError: (err: unknown) => {
-          toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
+          toast({
+            title: "Erro",
+            description: err instanceof Error ? err.message : "Erro",
+            variant: "destructive",
+          });
         },
-      }
+      },
     );
   };
 
   const openEdit = (m: typeof matches extends (infer T)[] | undefined ? T : never) => {
     if (!m) return;
+
+    setActiveTab("jogos");
+
     setEditState({
       id: (m as { id: number }).id,
       homeTeam: (m as { homeTeam: string }).homeTeam,
@@ -204,6 +282,7 @@ export default function AdminPage() {
 
   const handleUpdate = () => {
     if (!editState) return;
+
     const updateData: Record<string, unknown> = {
       homeTeam: editState.homeTeam,
       awayTeam: editState.awayTeam,
@@ -213,35 +292,67 @@ export default function AdminPage() {
       status: editState.status,
       youtubeUrl: editState.youtubeUrl || null,
     };
+
     if (editState.homeScore !== "") updateData.homeScore = parseInt(editState.homeScore, 10);
     if (editState.awayScore !== "") updateData.awayScore = parseInt(editState.awayScore, 10);
 
     updateMutation.mutate(
-      { id: editState.id, data: updateData as Parameters<typeof updateMutation.mutate>[0]["data"] },
+      {
+        id: editState.id,
+        data: updateData as Parameters<typeof updateMutation.mutate>[0]["data"],
+      },
       {
         onSuccess: () => {
           toast({ title: "Jogo atualizado!" });
           qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+          setActiveTab("jogos");
           setEditState(null);
         },
         onError: (err: unknown) => {
-          toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
+          toast({
+            title: "Erro",
+            description: err instanceof Error ? err.message : "Erro",
+            variant: "destructive",
+          });
         },
-      }
+      },
     );
   };
 
   const statusLabel = (s: string) => {
-    if (s === "pending") return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 gap-1"><Clock className="w-3 h-3" />Pendente</Badge>;
-    if (s === "approved") return <Badge className="bg-green-500/20 text-green-400 border-green-500/30 gap-1"><CheckCircle className="w-3 h-3" />Aprovado</Badge>;
-    if (s === "rejected") return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 gap-1"><XCircle className="w-3 h-3" />Recusado</Badge>;
+    if (s === "pending") {
+      return (
+        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 gap-1">
+          <Clock className="w-3 h-3" />
+          Pendente
+        </Badge>
+      );
+    }
+
+    if (s === "approved") {
+      return (
+        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 gap-1">
+          <CheckCircle className="w-3 h-3" />
+          Aprovado
+        </Badge>
+      );
+    }
+
+    if (s === "rejected") {
+      return (
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30 gap-1">
+          <XCircle className="w-3 h-3" />
+          Recusado
+        </Badge>
+      );
+    }
+
     return null;
   };
 
   return (
     <Layout>
       <div className="p-4 md:p-6 space-y-5">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
@@ -250,22 +361,36 @@ export default function AdminPage() {
               <p className="text-muted-foreground text-sm">Gerencie participantes e jogos</p>
             </div>
           </div>
+
           {activeTab === "participantes" && (
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => qc.invalidateQueries({ queryKey: ["admin-users"] })}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => qc.invalidateQueries({ queryKey: ["admin-users"] })}
+            >
               <RefreshCw className="w-4 h-4" />
               Atualizar
             </Button>
           )}
+
           {activeTab === "jogos" && (
             <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="outline" onClick={handleSyncLive} disabled={syncingLive} className="gap-2 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10">
+              <Button
+                variant="outline"
+                onClick={handleSyncLive}
+                disabled={syncingLive}
+                className="gap-2 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              >
                 <Zap className={`w-4 h-4 ${syncingLive ? "animate-pulse" : ""}`} />
                 {syncingLive ? "Atualizando..." : "Placares Ao Vivo"}
               </Button>
+
               <Button variant="outline" onClick={handleSyncMatches} disabled={syncing} className="gap-2">
                 <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
                 {syncing ? "Sincronizando..." : "Sincronizar Copa 2026"}
               </Button>
+
               <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-new-match">
                 <Plus className="w-4 h-4" />
                 Novo Jogo
@@ -274,15 +399,26 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div
+          className="flex gap-1 p-1 rounded-xl w-fit"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
           <button
             onClick={() => setActiveTab("participantes")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "participantes" ? "text-[#1a1200]" : "text-muted-foreground hover:text-foreground"}`}
-            style={activeTab === "participantes" ? {
-              background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
-              boxShadow: "0 2px 8px rgba(201,162,39,0.25)",
-            } : {}}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "participantes" ? "text-[#1a1200]" : "text-muted-foreground hover:text-foreground"
+            }`}
+            style={
+              activeTab === "participantes"
+                ? {
+                    background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                    boxShadow: "0 2px 8px rgba(201,162,39,0.25)",
+                  }
+                : {}
+            }
           >
             <Users className="w-4 h-4" />
             Participantes
@@ -292,24 +428,32 @@ export default function AdminPage() {
               </span>
             )}
           </button>
+
           <button
             onClick={() => setActiveTab("jogos")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "jogos" ? "text-[#1a1200]" : "text-muted-foreground hover:text-foreground"}`}
-            style={activeTab === "jogos" ? {
-              background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
-              boxShadow: "0 2px 8px rgba(201,162,39,0.25)",
-            } : {}}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "jogos" ? "text-[#1a1200]" : "text-muted-foreground hover:text-foreground"
+            }`}
+            style={
+              activeTab === "jogos"
+                ? {
+                    background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                    boxShadow: "0 2px 8px rgba(201,162,39,0.25)",
+                  }
+                : {}
+            }
           >
             Jogos
           </button>
         </div>
 
-        {/* ── Participantes Tab ── */}
         {activeTab === "participantes" && (
           <div className="bg-card border border-card-border rounded-xl overflow-hidden">
             {loadingUsers ? (
               <div className="space-y-px">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-none" />)}
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-16 rounded-none" />
+                ))}
               </div>
             ) : (participants ?? []).length === 0 ? (
               <div className="px-5 py-12 text-center text-sm text-muted-foreground">
@@ -317,85 +461,96 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {/* Pending first, then approved, then rejected */}
-                {[...( participants ?? [])].sort((a, b) => {
-                  const order: Record<string, number> = { pending: 0, approved: 1, rejected: 2 };
-                  return (order[a.status] ?? 3) - (order[b.status] ?? 3);
-                }).map((u) => (
-                  <div key={u.id} className="px-4 py-3 flex items-center gap-3" data-testid={`user-row-${u.id}`}>
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
-                      style={{ background: "linear-gradient(135deg, rgba(201,162,39,0.2) 0%, rgba(201,162,39,0.08) 100%)", color: "hsl(43,74%,52%)" }}
-                    >
-                      {u.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {statusLabel(u.status)}
-                      {u.status === "pending" && (
-                        <>
+                {[...(participants ?? [])]
+                  .sort((a, b) => {
+                    const order: Record<string, number> = { pending: 0, approved: 1, rejected: 2 };
+                    return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+                  })
+                  .map((u) => (
+                    <div key={u.id} className="px-4 py-3 flex items-center gap-3" data-testid={`user-row-${u.id}`}>
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
+                        style={{
+                          background: "linear-gradient(135deg, rgba(201,162,39,0.2) 0%, rgba(201,162,39,0.08) 100%)",
+                          color: "hsl(43,74%,52%)",
+                        }}
+                      >
+                        {u.name.slice(0, 2).toUpperCase()}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {statusLabel(u.status)}
+
+                        {u.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="gap-1.5 h-8 px-3 bg-green-600 hover:bg-green-500 text-white"
+                              onClick={() => handleApprove(u.id)}
+                              disabled={processingUser === u.id}
+                              data-testid={`button-approve-${u.id}`}
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Aprovar
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5 h-8 px-3 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                              onClick={() => handleReject(u.id)}
+                              disabled={processingUser === u.id}
+                              data-testid={`button-reject-${u.id}`}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              Recusar
+                            </Button>
+                          </>
+                        )}
+
+                        {u.status === "rejected" && (
                           <Button
                             size="sm"
                             className="gap-1.5 h-8 px-3 bg-green-600 hover:bg-green-500 text-white"
                             onClick={() => handleApprove(u.id)}
                             disabled={processingUser === u.id}
-                            data-testid={`button-approve-${u.id}`}
                           >
                             <CheckCircle className="w-3.5 h-3.5" />
                             Aprovar
                           </Button>
+                        )}
+
+                        {u.status === "approved" && (
                           <Button
                             size="sm"
                             variant="outline"
                             className="gap-1.5 h-8 px-3 border-red-500/30 text-red-400 hover:bg-red-500/10"
                             onClick={() => handleReject(u.id)}
                             disabled={processingUser === u.id}
-                            data-testid={`button-reject-${u.id}`}
                           >
                             <XCircle className="w-3.5 h-3.5" />
-                            Recusar
+                            Revogar
                           </Button>
-                        </>
-                      )}
-                      {u.status === "rejected" && (
-                        <Button
-                          size="sm"
-                          className="gap-1.5 h-8 px-3 bg-green-600 hover:bg-green-500 text-white"
-                          onClick={() => handleApprove(u.id)}
-                          disabled={processingUser === u.id}
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          Aprovar
-                        </Button>
-                      )}
-                      {u.status === "approved" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5 h-8 px-3 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                          onClick={() => handleReject(u.id)}
-                          disabled={processingUser === u.id}
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Revogar
-                        </Button>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Jogos Tab ── */}
         {activeTab === "jogos" && (
           loadingMatches ? (
             <div className="space-y-2">
-              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-16 rounded-xl" />
+              ))}
             </div>
           ) : (
             <div className="bg-card border border-card-border rounded-xl overflow-hidden">
@@ -403,27 +558,49 @@ export default function AdminPage() {
                 {matches?.map((m) => (
                   <div key={m.id} className="px-4 py-3.5 flex items-center gap-4" data-testid={`admin-match-${m.id}`}>
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <img src={m.homeLogo ?? ""} alt={m.homeTeam} className="w-6 h-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                      <img
+                        src={m.homeLogo ?? ""}
+                        alt={m.homeTeam}
+                        className="w-6 h-6 object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+
                       <span className="text-sm font-medium text-foreground truncate">{m.homeTeam}</span>
+
                       <span className="text-muted-foreground text-sm flex-shrink-0">
                         {m.homeScore !== null && m.awayScore !== null ? `${m.homeScore} × ${m.awayScore}` : "vs"}
                       </span>
+
                       <span className="text-sm font-medium text-foreground truncate">{m.awayTeam}</span>
-                      <img src={m.awayLogo ?? ""} alt={m.awayTeam} className="w-6 h-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+
+                      <img
+                        src={m.awayLogo ?? ""}
+                        alt={m.awayTeam}
+                        className="w-6 h-6 object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
                     </div>
+
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-muted-foreground hidden md:block">
                         {format(new Date(m.matchDate), "dd/MM HH:mm", { locale: ptBR })}
                       </span>
+
                       {m.status === "live" && <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Ao Vivo</Badge>}
                       {m.status === "finished" && <Badge variant="secondary">Encerrado</Badge>}
                       {m.status === "upcoming" && <Badge className="bg-primary/20 text-primary border-primary/30">Em Breve</Badge>}
+
                       <Button variant="ghost" size="icon" onClick={() => openEdit(m)} data-testid={`button-edit-match-${m.id}`}>
                         <Pencil className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
                 ))}
+
                 {!matches?.length && (
                   <div className="px-5 py-12 text-center text-sm text-muted-foreground">
                     Nenhum jogo cadastrado. Clique em "Novo Jogo" para começar.
@@ -435,38 +612,71 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* Create Match Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Novo Jogo</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Novo Jogo</DialogTitle>
+          </DialogHeader>
+
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Time da Casa</Label>
-                <Input placeholder="Brasil" value={newMatch.homeTeam} onChange={(e) => setNewMatch({ ...newMatch, homeTeam: e.target.value })} data-testid="input-home-team" />
+                <Input
+                  placeholder="Brasil"
+                  value={newMatch.homeTeam}
+                  onChange={(e) => setNewMatch({ ...newMatch, homeTeam: e.target.value })}
+                  data-testid="input-home-team"
+                />
               </div>
+
               <div className="space-y-1.5">
                 <Label>Time Visitante</Label>
-                <Input placeholder="Argentina" value={newMatch.awayTeam} onChange={(e) => setNewMatch({ ...newMatch, awayTeam: e.target.value })} data-testid="input-away-team" />
+                <Input
+                  placeholder="Argentina"
+                  value={newMatch.awayTeam}
+                  onChange={(e) => setNewMatch({ ...newMatch, awayTeam: e.target.value })}
+                  data-testid="input-away-team"
+                />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Logo Casa (URL)</Label>
-                <Input placeholder="https://..." value={newMatch.homeLogo} onChange={(e) => setNewMatch({ ...newMatch, homeLogo: e.target.value })} />
+                <Input
+                  placeholder="https://..."
+                  value={newMatch.homeLogo}
+                  onChange={(e) => setNewMatch({ ...newMatch, homeLogo: e.target.value })}
+                />
               </div>
+
               <div className="space-y-1.5">
                 <Label>Logo Visitante (URL)</Label>
-                <Input placeholder="https://..." value={newMatch.awayLogo} onChange={(e) => setNewMatch({ ...newMatch, awayLogo: e.target.value })} />
+                <Input
+                  placeholder="https://..."
+                  value={newMatch.awayLogo}
+                  onChange={(e) => setNewMatch({ ...newMatch, awayLogo: e.target.value })}
+                />
               </div>
             </div>
+
             <div className="space-y-1.5">
               <Label>Data e Hora</Label>
-              <Input type="datetime-local" value={newMatch.matchDate} onChange={(e) => setNewMatch({ ...newMatch, matchDate: e.target.value })} data-testid="input-match-date" />
+              <Input
+                type="datetime-local"
+                value={newMatch.matchDate}
+                onChange={(e) => setNewMatch({ ...newMatch, matchDate: e.target.value })}
+                data-testid="input-match-date"
+              />
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => setShowCreate(false)}>
+              Cancelar
+            </Button>
+
             <Button onClick={handleCreate} disabled={createMutation.isPending} data-testid="button-confirm-create">
               {createMutation.isPending ? "Criando..." : "Criar Jogo"}
             </Button>
@@ -474,30 +684,51 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Match Dialog */}
       <Dialog open={!!editState} onOpenChange={(open) => !open && setEditState(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Editar Jogo</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Editar Jogo</DialogTitle>
+          </DialogHeader>
+
           {editState && (
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Time da Casa</Label>
-                  <Input value={editState.homeTeam} onChange={(e) => setEditState({ ...editState, homeTeam: e.target.value })} />
+                  <Input
+                    value={editState.homeTeam}
+                    onChange={(e) => setEditState({ ...editState, homeTeam: e.target.value })}
+                  />
                 </div>
+
                 <div className="space-y-1.5">
                   <Label>Time Visitante</Label>
-                  <Input value={editState.awayTeam} onChange={(e) => setEditState({ ...editState, awayTeam: e.target.value })} />
+                  <Input
+                    value={editState.awayTeam}
+                    onChange={(e) => setEditState({ ...editState, awayTeam: e.target.value })}
+                  />
                 </div>
               </div>
+
               <div className="space-y-1.5">
                 <Label>Data e Hora</Label>
-                <Input type="datetime-local" value={editState.matchDate} onChange={(e) => setEditState({ ...editState, matchDate: e.target.value })} />
+                <Input
+                  type="datetime-local"
+                  value={editState.matchDate}
+                  onChange={(e) => setEditState({ ...editState, matchDate: e.target.value })}
+                />
               </div>
+
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Select value={editState.status} onValueChange={(v) => setEditState({ ...editState, status: v as MatchStatus })}>
-                  <SelectTrigger data-testid="select-status"><SelectValue /></SelectTrigger>
+                <Select
+                  value={editState.status}
+                  onValueChange={(v) => setEditState({ ...editState, status: v as MatchStatus })}
+                >
+                  <SelectTrigger data-testid="select-status">
+                    <SelectValue />
+                  </SelectTrigger>
+
                   <SelectContent>
                     <SelectItem value="upcoming">Em Breve</SelectItem>
                     <SelectItem value="live">Ao Vivo</SelectItem>
@@ -505,16 +736,31 @@ export default function AdminPage() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Gols Casa</Label>
-                  <Input type="number" min="0" value={editState.homeScore} onChange={(e) => setEditState({ ...editState, homeScore: e.target.value })} data-testid="input-home-score" />
+                  <Input
+                    type="number"
+                    min="0"
+                    value={editState.homeScore}
+                    onChange={(e) => setEditState({ ...editState, homeScore: e.target.value })}
+                    data-testid="input-home-score"
+                  />
                 </div>
+
                 <div className="space-y-1.5">
                   <Label>Gols Visitante</Label>
-                  <Input type="number" min="0" value={editState.awayScore} onChange={(e) => setEditState({ ...editState, awayScore: e.target.value })} data-testid="input-away-score" />
+                  <Input
+                    type="number"
+                    min="0"
+                    value={editState.awayScore}
+                    onChange={(e) => setEditState({ ...editState, awayScore: e.target.value })}
+                    data-testid="input-away-score"
+                  />
                 </div>
               </div>
+
               <div className="space-y-1.5">
                 <Label>Link YouTube (transmissão ao vivo)</Label>
                 <Input
@@ -522,12 +768,18 @@ export default function AdminPage() {
                   value={editState.youtubeUrl}
                   onChange={(e) => setEditState({ ...editState, youtubeUrl: e.target.value })}
                 />
-                <p className="text-xs text-muted-foreground">Cole o link do YouTube para exibir a transmissão na aba Ao Vivo</p>
+                <p className="text-xs text-muted-foreground">
+                  Cole o link do YouTube para exibir a transmissão na aba Ao Vivo
+                </p>
               </div>
             </div>
           )}
+
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditState(null)}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => setEditState(null)}>
+              Cancelar
+            </Button>
+
             <Button onClick={handleUpdate} disabled={updateMutation.isPending} data-testid="button-confirm-update">
               {updateMutation.isPending ? "Salvando..." : "Salvar"}
             </Button>
