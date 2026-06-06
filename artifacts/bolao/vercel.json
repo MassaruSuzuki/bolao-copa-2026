@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://bolao-copa-2026-3i0m.onrender.com/api/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
     }
   ]
 }
