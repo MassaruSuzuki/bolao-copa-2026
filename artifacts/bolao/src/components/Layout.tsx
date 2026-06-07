@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,7 @@ import {
   Radio,
   TableProperties,
   BookOpen,
-  MoreHorizontal,
-  X,
+
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,22 +50,16 @@ const navItems = [
   { href: "/rules", label: "Regras", icon: BookOpen },
 ];
 
-// Main 4 tabs always shown in bottom bar
+// Mobile tabs shown in bottom bar
 const mainMobileItems = [
   { href: "/dashboard", label: "Início", icon: LayoutDashboard },
   { href: "/matches", label: "Jogos", icon: Calendar },
   { href: "/ranking", label: "Ranking", icon: Trophy },
   { href: "/predictions", label: "Palpites", icon: Target },
-];
-
-// Extra items shown in the "Mais" drawer
-const moreMobileItems = [
-  { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
-  { href: "/tabela", label: "Tabela do Bolão", icon: TableProperties },
+  { href: "/tabela", label: "Tabela", icon: TableProperties },
   { href: "/rules", label: "Regras", icon: BookOpen },
 ];
 
-const moreHrefs = new Set(moreMobileItems.map((i) => i.href));
 
 interface LayoutProps {
   children: ReactNode;
@@ -75,20 +68,13 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
-  const [moreOpen, setMoreOpen] = useState(false);
+  
 
   const sidebarItems = user?.isAdmin
     ? [...navItems, { href: "/admin", label: "Admin", icon: Shield }]
     : navItems;
 
-  // "Mais" is active when the current page is in the drawer
-  const isMoreActive = moreHrefs.has(location) || (user?.isAdmin && location === "/admin");
 
-  const adminDrawerItem = user?.isAdmin
-    ? [{ href: "/admin", label: "Admin", icon: Shield }]
-    : [];
-
-  const drawerItems = [...adminDrawerItem, ...moreMobileItems];
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -194,142 +180,49 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </div>
 
-      {/* ── Mobile "Mais" drawer backdrop ── */}
-      {moreOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-40 bg-black/60"
-          style={{ backdropFilter: "blur(4px)" }}
-          onClick={() => setMoreOpen(false)}
-        />
-      )}
+    
+{/* ── Mobile Bottom Tab Bar ── */}
+<nav
+  className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t overflow-x-auto"
+  style={{
+    background: "rgba(8,9,13,0.97)",
+    backdropFilter: "blur(16px)",
+    borderColor: "rgba(201,162,39,0.12)",
+    paddingBottom: "env(safe-area-inset-bottom)",
+  }}
+  data-testid="nav-bottom"
+>
+  <div className="flex min-w-max">
+    {mainMobileItems.map(({ href, label, icon: Icon }) => {
+      const active = location === href || location.startsWith(href + "/");
 
-      {/* ── Mobile "Mais" drawer ── */}
-      <div
-        className={cn(
-          "md:hidden fixed left-0 right-0 z-50 transition-transform duration-300 ease-out",
-          moreOpen ? "translate-y-0" : "translate-y-full"
-        )}
-        style={{
-          bottom: "calc(56px + env(safe-area-inset-bottom))",
-          background: "hsl(220,20%,6%)",
-          borderTop: "1px solid rgba(201,162,39,0.2)",
-          borderRadius: "20px 20px 0 0",
-        }}
-      >
-        {/* Drawer handle */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-2">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mais opções</span>
-          <button onClick={() => setMoreOpen(false)} className="p-1 rounded-full hover:bg-white/10 transition-colors">
-            <X className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-
-        <div className="px-3 pb-4 grid grid-cols-3 gap-2">
-          {drawerItems.map(({ href, label, icon: Icon }) => {
-            const active = location === href || location.startsWith(href + "/");
-            const isLive = href === "/ao-vivo";
-            return (
-              <Link key={href} href={href} onClick={() => setMoreOpen(false)}>
-                <div
-                  className={cn(
-                    "flex flex-col items-center gap-2 py-4 px-2 rounded-xl transition-all cursor-pointer",
-                    active
-                      ? "text-[#1a1200]"
-                      : "text-white/60 hover:text-white/90 hover:bg-white/5"
-                  )}
-                  style={active ? {
-                    background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
-                  } : {}}
-                >
-                  <div className="relative">
-                    <Icon className={cn("w-6 h-6", isLive && !active && "text-red-400")} />
-                    {isLive && !active && (
-                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    )}
-                  </div>
-                  <span className="text-[11px] font-medium text-center leading-tight">{label}</span>
-                </div>
-              </Link>
-            );
-          })}
-
-          {/* Profile shortcut */}
-          <Link href="/profile" onClick={() => setMoreOpen(false)}>
-            <div className="flex flex-col items-center gap-2 py-4 px-2 rounded-xl text-white/60 hover:text-white/90 hover:bg-white/5 transition-all cursor-pointer">
-              <UserAvatar name={user?.name} avatarUrl={user?.avatarUrl} size={6} textSize="xs" />
-              <span className="text-[11px] font-medium text-center leading-tight">Perfil</span>
-            </div>
-          </Link>
-
-          {/* Logout */}
-          <button
-            className="flex flex-col items-center gap-2 py-4 px-2 rounded-xl text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
-            onClick={() => { setMoreOpen(false); logout(); }}
-          >
-            <LogOut className="w-6 h-6" />
-            <span className="text-[11px] font-medium text-center leading-tight">Sair</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Mobile Bottom Tab Bar ── */}
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex items-stretch"
-        style={{
-          background: "rgba(8,9,13,0.97)",
-          backdropFilter: "blur(16px)",
-          borderColor: "rgba(201,162,39,0.12)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
-        data-testid="nav-bottom"
-      >
-        {mainMobileItems.map(({ href, label, icon: Icon }) => {
-          const active = location === href || location.startsWith(href + "/");
-          return (
-            <Link key={href} href={href} className="flex-1">
-              <div
-                className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 py-2 px-1 relative transition-colors",
-                  active ? "text-primary" : "text-white/40 hover:text-white/70"
-                )}
-                data-testid={`nav-item-mobile-${href.slice(1)}`}
-              >
-                <div className="relative">
-                  <Icon className="w-5 h-5" />
-                  {active && (
-                    <span
-                      className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                      style={{ background: "hsl(43,74%,52%)" }}
-                    />
-                  )}
-                </div>
-                <span className={cn("text-[10px] font-medium leading-tight", active && "font-semibold")}>{label}</span>
-              </div>
-            </Link>
-          );
-        })}
-
-        {/* Mais button */}
-        <button
-          className={cn(
-            "flex-1 flex flex-col items-center justify-center gap-0.5 py-2 px-1 transition-colors",
-            isMoreActive ? "text-primary" : "text-white/40 hover:text-white/70"
-          )}
-          onClick={() => setMoreOpen((v) => !v)}
-          data-testid="nav-item-mobile-mais"
-        >
-          <div className="relative">
-            {moreOpen ? <X className="w-5 h-5" /> : <MoreHorizontal className="w-5 h-5" />}
-            {isMoreActive && !moreOpen && (
-              <span
-                className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                style={{ background: "hsl(43,74%,52%)" }}
-              />
+      return (
+        <Link key={href} href={href} className="min-w-[78px]">
+          <div
+            className={cn(
+              "flex flex-col items-center justify-center gap-0.5 py-2 px-3 relative transition-colors",
+              active ? "text-primary" : "text-white/40 hover:text-white/70"
             )}
+            data-testid={`nav-item-mobile-${href.slice(1)}`}
+          >
+            <div className="relative">
+              <Icon className="w-5 h-5" />
+              {active && (
+                <span
+                  className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                  style={{ background: "hsl(43,74%,52%)" }}
+                />
+              )}
+            </div>
+            <span className={cn("text-[10px] font-medium leading-tight whitespace-nowrap", active && "font-semibold")}>
+              {label}
+            </span>
           </div>
-          <span className={cn("text-[10px] font-medium leading-tight", isMoreActive && "font-semibold")}>Mais</span>
-        </button>
-      </nav>
+        </Link>
+      );
+    })}
+  </div>
+</nav>
 
       {/* ── Main content ── */}
       <main className="flex-1 md:ml-64 min-h-screen">
