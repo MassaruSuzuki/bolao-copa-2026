@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Plus, Pencil, Shield, RefreshCw, Zap, Users, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Plus, Pencil, Trash2, Shield, RefreshCw, Zap, Users, CheckCircle, XCircle, Clock } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
 type AdminTab = "jogos" | "participantes";
@@ -260,6 +260,36 @@ export default function AdminPage() {
       },
     );
   };
+
+  const handleDeleteMatch = async (matchId: number) => {
+  const confirmDelete = window.confirm("Tem certeza que deseja excluir este jogo?");
+
+  if (!confirmDelete) return;
+
+  try {
+    const token = localStorage.getItem("bolao_token");
+
+    const res = await fetch(`/api/admin/matches/${matchId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error("Erro ao excluir jogo");
+    }
+
+    toast({ title: "Jogo excluído com sucesso!" });
+    qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+  } catch (err) {
+    toast({
+      title: "Erro",
+      description: err instanceof Error ? err.message : "Erro ao excluir jogo",
+      variant: "destructive",
+    });
+  }
+};
 
   const openEdit = (m: typeof matches extends (infer T)[] | undefined ? T : never) => {
     if (!m) return;
@@ -595,8 +625,18 @@ export default function AdminPage() {
                       {m.status === "upcoming" && <Badge className="bg-primary/20 text-primary border-primary/30">Em Breve</Badge>}
 
                       <Button variant="ghost" size="icon" onClick={() => openEdit(m)} data-testid={`button-edit-match-${m.id}`}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
+  <Pencil className="w-4 h-4" />
+</Button>
+
+<Button
+  variant="ghost"
+  size="icon"
+  className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+  onClick={() => handleDeleteMatch(m.id)}
+  data-testid={`button-delete-match-${m.id}`}
+>
+  <Trash2 className="w-4 h-4" />
+</Button>
                     </div>
                   </div>
                 ))}

@@ -176,4 +176,18 @@ router.get("/matches/:id/predictions", requireAuth, async (req, res): Promise<vo
   );
 });
 
+router.delete("/admin/matches/:id", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+
+  if (Number.isNaN(id) || id <= 0) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  await db.delete(predictionsTable).where(eq(predictionsTable.matchId, id));
+  await db.delete(matchesTable).where(eq(matchesTable.id, id));
+
+  res.json({ success: true });
+});
+
 export default router;
