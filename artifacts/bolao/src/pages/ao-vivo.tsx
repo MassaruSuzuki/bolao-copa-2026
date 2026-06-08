@@ -148,13 +148,13 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
                   <div className="flex gap-0.5">
                     {[0,1,2,3,4].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-yellow-400" />)}
                   </div>
-                  <span>Placar exato (+5pts)</span>
+                  <span>Placar exato (+3pts)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="flex gap-0.5">
                     {[0,1,2,3,4].map(i => <div key={i} className={cn("w-1.5 h-1.5 rounded-full", i < 4 ? "bg-primary" : "bg-muted-foreground/20")} />)}
                   </div>
-                  <span>Vencedor certo (+3pts)</span>
+                  <span>Vencedor ou empate (+1pt)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="flex gap-0.5">

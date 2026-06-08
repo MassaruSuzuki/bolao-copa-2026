@@ -279,8 +279,8 @@ export default function TabelaPage() {
 
         {/* Column legend */}
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground/60">
-          <span><strong className="text-yellow-400">AC</strong> = Acertos (placar exato, 5pts)</span>
-          <span><strong className="text-primary">V</strong> = Vencedor certo (3pts)</span>
+          <span><strong className="text-yellow-400">AC</strong> = Acertos (placar exato, 3pts)</span>
+          <span><strong className="text-primary">V</strong> = Vencedor ou empate (1pts)</span>
           <span><strong className="text-red-400/80">E</strong> = Erros (0pts)</span>
           <span><strong className="text-foreground">PTS</strong> = Pontos totais</span>
         </div>
