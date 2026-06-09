@@ -24,7 +24,19 @@ export default function PredictionsPage() {
 
   const isLoading = loadingPreds || loadingMatches;
   const matchById = new Map((matches ?? []).map((m) => [m.id, m]));
-  const myPredictions = (predictions ?? []).filter((p) => matchById.has(p.matchId));
+  const myPredictions = (predictions ?? [])
+  .filter((p) => matchById.has(p.matchId))
+  .sort((a, b) => {
+    const matchA = matchById.get(a.matchId);
+    const matchB = matchById.get(b.matchId);
+
+    if (!matchA || !matchB) return 0;
+
+    return (
+      new Date(matchA.matchDate).getTime() -
+      new Date(matchB.matchDate).getTime()
+    );
+  });
 
   const handleDelete = async (predId: number, e: React.MouseEvent) => {
     e.preventDefault();
