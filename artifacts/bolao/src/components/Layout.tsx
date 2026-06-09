@@ -52,6 +52,7 @@ const navItems = [
 
 // Mobile tabs shown in bottom bar
 const mainMobileItems = [
+  { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
   { href: "/dashboard", label: "Início", icon: LayoutDashboard },
   { href: "/matches", label: "Jogos", icon: Calendar },
   { href: "/ranking", label: "Ranking", icon: Trophy },
