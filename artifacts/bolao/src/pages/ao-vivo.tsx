@@ -249,16 +249,14 @@ export default function AoVivoPage() {
   });
 
   useEffect(() => {
-    if (hasLiveMatch) {
-      pollRef.current = setInterval(() => {
-        qc.invalidateQueries({ queryKey: getGetLiveRankingQueryKey() });
-        qc.invalidateQueries({ queryKey: getListMatchesQueryKey({ status: "live" }) });
-      }, 10_000);
-    }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [hasLiveMatch, qc]);
+  if (!hasLiveMatch) return;
+
+  const interval = setInterval(() => {
+    qc.invalidateQueries({ queryKey: getGetLiveRankingQueryKey() });
+  }, 10_000);
+
+  return () => clearInterval(interval);
+}, [hasLiveMatch, qc]);
 
   const rankingEntries = (hasLiveMatch ? (liveRanking ?? []) : toLiveShape(baseRanking)) as ReturnType<typeof toLiveShape>;
   const isLoading = loadingMatches || (hasLiveMatch ? loadingLive : false);
