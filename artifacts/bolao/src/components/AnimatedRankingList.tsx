@@ -3,8 +3,12 @@ import { Trophy, Medal, Target, TrendingUp, TrendingDown, Minus } from "lucide-r
 import { cn } from "@/lib/utils";
 import type { LiveRankingEntry } from "@workspace/api-client-react";
 
+interface RankingEntryWithAvatar extends LiveRankingEntry {
+  avatarUrl?: string | null;
+}
+
 interface Props {
-  entries: LiveRankingEntry[];
+  entries: RankingEntryWithAvatar[];
   currentUserId?: number;
   isLive: boolean;
   liveScore?: { home: number | null; away: number | null; homeTeam: string; awayTeam: string };
@@ -14,39 +18,64 @@ interface Props {
 const ROW_HEIGHT = 72;
 const ROW_HEIGHT_COMPACT = 54;
 
-function PodiumBadge({ position, compact }: { position: number; compact?: boolean }) {
-  const size = compact ? "w-7 h-7" : "w-8 h-8";
-  const iconSize = compact ? "w-3.5 h-3.5" : "w-4 h-4";
-  if (position === 1)
+function RankingAvatar({
+  entry,
+  position,
+  compact,
+}: {
+  entry: RankingEntryWithAvatar;
+  position: number;
+  compact?: boolean;
+}) {
+  const size = compact ? "w-8 h-8" : "w-10 h-10";
+  const iconSize = compact ? "w-4 h-4" : "w-5 h-5";
+
+  if (position === 1) {
     return (
-      <div className={`${size} rounded-full bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center flex-shrink-0`}>
+      <div className={`${size} rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(250,204,21,0.25)]`}>
         <Trophy className={`${iconSize} text-yellow-400`} />
       </div>
     );
-  if (position === 2)
+  }
+
+  if (position === 2) {
     return (
-      <div className={`${size} rounded-full bg-gray-400/20 border border-gray-400/30 flex items-center justify-center flex-shrink-0`}>
+      <div className={`${size} rounded-full bg-gray-400/20 border border-gray-400/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(209,213,219,0.18)]`}>
         <Medal className={`${iconSize} text-gray-300`} />
       </div>
     );
-  if (position === 3)
+  }
+
+  if (position === 3) {
     return (
-      <div className={`${size} rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center flex-shrink-0`}>
+      <div className={`${size} rounded-full bg-orange-500/20 border border-orange-500/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(249,115,22,0.2)]`}>
         <Medal className={`${iconSize} text-orange-400`} />
       </div>
     );
+  }
+
+  if (entry.avatarUrl) {
+    return (
+      <img
+        src={entry.avatarUrl}
+        alt={entry.name}
+        className={`${size} rounded-full object-cover flex-shrink-0 border border-white/10`}
+      />
+    );
+  }
+
   return (
     <div className={`${size} rounded-full bg-muted flex items-center justify-center flex-shrink-0`}>
-      <span className="text-xs font-bold text-muted-foreground">{position}</span>
+      <span className="text-xs font-bold text-muted-foreground">
+        {entry.name.slice(0, 2).toUpperCase()}
+      </span>
     </div>
   );
 }
 
 function ProximityBar({ proximity, hasPrediction }: { proximity: number | null; hasPrediction: boolean }) {
-  if (!hasPrediction)
-    return <span className="text-xs text-muted-foreground/50 italic">sem palpite</span>;
-  if (proximity === null)
-    return null;
+  if (!hasPrediction) return <span className="text-xs text-muted-foreground/50 italic">sem palpite</span>;
+  if (proximity === null) return null;
 
   const isExact = proximity === 0;
   const isClose = proximity <= 1;
@@ -60,7 +89,7 @@ function ProximityBar({ proximity, hasPrediction }: { proximity: number | null; 
             key={i}
             className={cn(
               "w-1.5 h-1.5 rounded-full transition-all duration-700",
-              i < (5 - Math.min(proximity, 5))
+              i < 5 - Math.min(proximity, 5)
                 ? isExact
                   ? "bg-yellow-400"
                   : isClose
@@ -86,15 +115,17 @@ function ProximityBar({ proximity, hasPrediction }: { proximity: number | null; 
 }
 
 function MovementIndicator({ delta }: { delta: number }) {
-  if (delta === 0)
-    return <Minus className="w-3.5 h-3.5 text-muted-foreground/50" />;
-  if (delta > 0)
+  if (delta === 0) return <Minus className="w-3.5 h-3.5 text-muted-foreground/50" />;
+
+  if (delta > 0) {
     return (
       <div className="flex items-center gap-0.5 text-emerald-400">
         <TrendingUp className="w-3.5 h-3.5" />
         <span className="text-xs font-bold">+{delta}</span>
       </div>
     );
+  }
+
   return (
     <div className="flex items-center gap-0.5 text-red-400">
       <TrendingDown className="w-3.5 h-3.5" />
@@ -114,6 +145,7 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
 
   const recordPositions = () => {
     prevPositions.current.clear();
+
     nodeRefs.current.forEach((node, userId) => {
       if (node) {
         prevPositions.current.set(userId, node.getBoundingClientRect().top);
@@ -126,8 +158,10 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
 
     nodeRefs.current.forEach((node, userId) => {
       if (!node) return;
+
       const oldTop = prevPositions.current.get(userId);
       if (oldTop === undefined) return;
+
       const newTop = node.getBoundingClientRect().top;
       const deltaY = oldTop - newTop;
 
@@ -142,9 +176,11 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
 
     entries.forEach((entry, idx) => {
       const prevRank = prevRankRef.current.get(entry.userId);
+
       if (prevRank !== undefined) {
         newDeltas.set(entry.userId, prevRank - (idx + 1));
       }
+
       prevRankRef.current.set(entry.userId, idx + 1);
     });
 
@@ -178,7 +214,7 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
             )}
             style={{ height: rowHeight }}
           >
-            <PodiumBadge position={position} compact={compact} />
+            <RankingAvatar entry={entry} position={position} compact={compact} />
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -192,11 +228,12 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
                   {entry.name}
                   {isMe && <span className="text-xs ml-1.5 text-primary/70">(você)</span>}
                 </p>
+
                 {isLive && <MovementIndicator delta={delta} />}
               </div>
 
-              {!compact && (
-                isLive ? (
+              {!compact &&
+                (isLive ? (
                   <div className="mt-0.5">
                     {entry.hasPrediction && entry.predHome !== null && entry.predAway !== null ? (
                       <div className="flex items-center gap-2">
@@ -206,8 +243,13 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
                             {entry.predHome} x {entry.predAway}
                           </span>
                         </span>
+
                         <span className="text-muted-foreground/40">·</span>
-                        <ProximityBar proximity={entry.proximity ?? null} hasPrediction={entry.hasPrediction} />
+
+                        <ProximityBar
+                          proximity={entry.proximity ?? null}
+                          hasPrediction={entry.hasPrediction}
+                        />
                       </div>
                     ) : (
                       <ProximityBar proximity={null} hasPrediction={false} />
@@ -220,8 +262,7 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
                       {entry.hasPrediction ? "tem palpite" : "sem palpite"}
                     </span>
                   </div>
-                )
-              )}
+                ))}
 
               {compact && isLive && entry.hasPrediction && entry.predHome !== null && entry.predAway !== null && (
                 <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
@@ -247,12 +288,14 @@ export function AnimatedRankingList({ entries, currentUserId, isLive, compact }:
                 >
                   {entry.projectedTotal}
                 </p>
+
                 {isLive && entry.liveBonus > 0 && (
                   <span className="text-xs font-bold text-emerald-400 mb-0.5">
                     +{entry.liveBonus}
                   </span>
                 )}
               </div>
+
               <p className="text-xs text-muted-foreground">pts</p>
             </div>
           </div>

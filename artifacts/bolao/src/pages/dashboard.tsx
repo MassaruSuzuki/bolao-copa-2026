@@ -31,6 +31,7 @@ function toLiveShape(entries: RankingEntry[] | undefined) {
   return (entries ?? []).map((e) => ({
     userId: e.userId,
     name: e.name,
+    avatarUrl: (e as any).avatarUrl ?? null,
     basePoints: e.totalPoints,
     liveBonus: 0,
     projectedTotal: e.totalPoints,
