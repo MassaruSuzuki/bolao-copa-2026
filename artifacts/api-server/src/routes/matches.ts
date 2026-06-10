@@ -1,8 +1,15 @@
 import { Router, type IRouter } from "express";
-import { db, matchesTable, predictionsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import {
+  db,
+  matchesTable,
+  predictionsTable,
+  usersTable,
+  matchChatMessagesTable,
+} from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 import { CreateMatchBody, UpdateMatchBody, UpdateMatchParams, GetMatchParams, ListMatchesQueryParams } from "@workspace/api-zod";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
+
 
 const router: IRouter = Router();
 
@@ -176,16 +183,169 @@ router.get("/matches/:id/predictions", requireAuth, async (req, res): Promise<vo
   );
 });
 
-router.delete("/admin/matches/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
+router.delete("/matches/:id/chat", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const matchId = Number(req.params.id);
 
-  if (Number.isNaN(id) || id <= 0) {
+  if (Number.isNaN(matchId)) {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
 
-  await db.delete(predictionsTable).where(eq(predictionsTable.matchId, id));
-  await db.delete(matchesTable).where(eq(matchesTable.id, id));
+  await db
+    .delete(matchChatMessagesTable)
+    .where(eq(matchChatMessagesTable.matchId, matchId));
+
+  res.json({ success: true });
+  return;
+});
+
+router.get("/matches/:id/chat", requireAuth, async (req, res): Promise<void> => {
+  const matchId = Number(req.params.id);
+
+  if (Number.isNaN(matchId)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const [match] = await db
+    .select({
+      id: matchesTable.id,
+      chatLocked: matchesTable.chatLocked,
+    })
+    .from(matchesTable)
+    .where(eq(matchesTable.id, matchId));
+
+  if (!match) {
+    res.status(404).json({ error: "Jogo não encontrado" });
+    return;
+  }
+
+  const messages = await db
+    .select({
+      id: matchChatMessagesTable.id,
+      matchId: matchChatMessagesTable.matchId,
+      userId: matchChatMessagesTable.userId,
+      message: matchChatMessagesTable.message,
+      createdAt: matchChatMessagesTable.createdAt,
+      userName: usersTable.name,
+      userAvatarUrl: usersTable.avatarUrl,
+    })
+    .from(matchChatMessagesTable)
+    .innerJoin(usersTable, eq(matchChatMessagesTable.userId, usersTable.id))
+    .where(eq(matchChatMessagesTable.matchId, matchId))
+    .orderBy(matchChatMessagesTable.createdAt);
+
+  res.json({
+    chatLocked: match.chatLocked,
+    messages: messages.map((m) => ({
+      ...m,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  });
+});
+
+router.post("/matches/:id/chat", requireAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const matchId = parseInt(raw, 10);
+
+  if (Number.isNaN(matchId)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const message = String(req.body?.message ?? "").trim();
+
+  if (!message) {
+    res.status(400).json({ error: "Mensagem vazia" });
+    return;
+  }
+
+  if (message.length > 300) {
+    res.status(400).json({ error: "Mensagem muito longa" });
+    return;
+  }
+
+  const [match] = await db
+  .select({
+    id: matchesTable.id,
+    status: matchesTable.status,
+    chatLocked: matchesTable.chatLocked,
+  })
+    .from(matchesTable)
+    .where(eq(matchesTable.id, matchId));
+
+  if (!match) {
+    res.status(404).json({ error: "Jogo não encontrado" });
+    return;
+  }
+
+  if (match.status !== "live") {
+    res.status(403).json({ error: "O chat só fica aberto durante jogos ao vivo" });
+    return;
+  }
+
+  if (match.chatLocked) {
+  res.status(403).json({ error: "O chat foi bloqueado pelo administrador" });
+  return;
+}
+
+  const [created] = await db
+    .insert(matchChatMessagesTable)
+    .values({
+      matchId,
+      userId: req.user!.userId,
+      message,
+    })
+    .returning();
+
+  res.status(201).json({
+    id: created.id,
+    matchId: created.matchId,
+    userId: created.userId,
+    message: created.message,
+    createdAt: created.createdAt.toISOString(),
+  });
+});
+
+router.patch("/matches/:id/chat/lock", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const matchId = Number(req.params.id);
+
+  if (Number.isNaN(matchId)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const body = req.body as { locked?: boolean };
+  const locked = body.locked === true;
+
+  const [updated] = await db
+    .update(matchesTable)
+    .set({ chatLocked: locked })
+    .where(eq(matchesTable.id, matchId))
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Jogo não encontrado" });
+    return;
+  }
+
+  res.json({
+    matchId,
+    chatLocked: updated.chatLocked,
+  });
+});
+
+router.delete("/matches/:id/chat", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const matchId = Number(req.params.id);
+
+  if (Number.isNaN(matchId)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  await db
+    .delete(matchChatMessagesTable)
+    .where(eq(matchChatMessagesTable.matchId, matchId));
 
   res.json({ success: true });
 });

@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
+import { MatchChat } from "@/components/MatchChat";
 import type { RankingEntry } from "@workspace/api-client-react";
 
 function toLiveShape(entries: RankingEntry[] | undefined) {
@@ -121,26 +122,50 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
             transition={{ duration: 0.3 }}
             style={{ overflow: "hidden" }}
           >
-            <div className="px-5 pb-4 space-y-4 border-t border-white/5 pt-4">
-              {embedUrl && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Youtube className="w-3.5 h-3.5 text-red-500" />
-                    <span>Transmissão ao vivo</span>
-                  </div>
-                  <div
-                    className="mx-auto rounded-xl overflow-hidden bg-black"
-                    style={{ maxWidth: "600px", aspectRatio: "16/9" }}
-                  >
-                    <iframe
-                      src={embedUrl}
-                      style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                </div>
-              )}
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+  <div className="grid xl:grid-cols-[minmax(0,720px)_360px] gap-4 items-stretch justify-center">
+    {/* Video */}
+    <div className="w-full">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+        <Youtube className="w-3.5 h-3.5 text-red-500" />
+        <span>Transmissão ao vivo</span>
+      </div>
+
+      <div
+        className="rounded-xl overflow-hidden bg-black border border-white/10"
+        style={{
+          width: "100%",
+          aspectRatio: "16/9",
+        }}
+      >
+        {embedUrl ? (
+          <iframe
+            src={embedUrl}
+            style={{
+              width: "100%",
+              height: "100%",
+              border: "none",
+              display: "block",
+            }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">
+            Transmissão indisponível
+          </div>
+        )}
+      </div>
+    </div>
+
+    {/* Chat */}
+    <div className="w-full">
+      <div className="h-full [&>div]:h-full">
+        <MatchChat matchId={match.id} isLive={true} />
+      </div>
+    </div>
+  </div>
+</div>
 
               {/* Legend */}
               <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -165,19 +190,28 @@ function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMa
               </div>
 
               {/* Ranking */}
-              <div className="bg-card border border-primary/20 rounded-xl overflow-hidden">
-                <AnimatedRankingList
-                  entries={rankingEntries}
-                  currentUserId={currentUserId}
-                  isLive={true}
-                  liveScore={hasScore ? {
-                    home: match.homeScore as number,
-                    away: match.awayScore as number,
-                    homeTeam: match.homeTeam,
-                    awayTeam: match.awayTeam,
-                  } : undefined}
-                />
-              </div>
+<div className="space-y-4">
+  {/* Ranking ao vivo */}
+  <div className="bg-card border border-primary/20 rounded-xl overflow-hidden">
+    <AnimatedRankingList
+      entries={rankingEntries}
+      currentUserId={currentUserId}
+      isLive={true}
+      liveScore={
+        hasScore
+          ? {
+              home: match.homeScore as number,
+              away: match.awayScore as number,
+              homeTeam: match.homeTeam,
+              awayTeam: match.awayTeam,
+            }
+          : undefined
+      }
+    />
+  </div>
+
+
+
             </div>
           </motion.div>
         )}
