@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Camera, Loader2, Check } from "lucide-react";
-import { useUpload } from "@workspace/object-storage-web";
+
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -18,37 +18,31 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const { uploadFile, isUploading } = useUpload({
-    basePath: "/api/storage",
-    onSuccess: (response) => {
-      setAvatarUrl(response.objectPath);
-    },
-    onError: () => {
-      toast({ title: "Erro ao enviar foto", variant: "destructive" });
-    },
-  });
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Apenas imagens são permitidas", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Imagem muito grande (máx 5MB)", variant: "destructive" });
-      return;
-    }
+  if (!file.type.startsWith("image/")) {
+    toast({ title: "Apenas imagens são permitidas", variant: "destructive" });
+    return;
+  }
 
-    const localPreview = URL.createObjectURL(file);
-    setPreviewUrl(localPreview);
+  if (file.size > 1024 * 1024) {
+    toast({ title: "Imagem muito grande (máx 1MB)", variant: "destructive" });
+    return;
+  }
 
-    const result = await uploadFile(file);
-    if (result) {
-      setAvatarUrl(result.objectPath);
-    }
+  const reader = new FileReader();
+
+  reader.onloadend = () => {
+    const base64 = reader.result as string;
+    setPreviewUrl(base64);
+    setAvatarUrl(base64);
   };
+
+  reader.readAsDataURL(file);
+};
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -76,7 +70,7 @@ export default function ProfilePage() {
     }
   };
 
-  const displayAvatar = previewUrl ?? (avatarUrl ? `/api/storage${avatarUrl}` : null);
+  const displayAvatar = previewUrl ?? avatarUrl ?? null;
   const initials = (user?.name ?? "?").slice(0, 2).toUpperCase();
 
   return (
@@ -106,14 +100,14 @@ export default function ProfilePage() {
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
+                disabled={isSaving}
                 className="absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors"
                 style={{
                   background: "hsl(220,20%,12%)",
                   borderColor: "rgba(201,162,39,0.4)",
                 }}
               >
-                {isUploading ? (
+                {false ? (
                   <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 ) : (
                   <Camera className="w-4 h-4 text-primary" />
@@ -129,13 +123,11 @@ export default function ProfilePage() {
               />
             </div>
 
-            {isUploading && (
-              <p className="text-xs text-white/50">Enviando foto...</p>
-            )}
+            
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
+              disabled={isSaving}
               className="text-sm text-primary hover:text-primary/80 transition-colors font-medium"
             >
               {displayAvatar ? "Trocar foto" : "Adicionar foto de perfil"}
@@ -164,7 +156,7 @@ export default function ProfilePage() {
 
           <Button
             onClick={handleSave}
-            disabled={isSaving || isUploading || !name.trim()}
+            disabled={isSaving || !name.trim()}
             className="w-full font-bold gap-2"
             style={{ background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)", color: "#1a1200" }}
           >

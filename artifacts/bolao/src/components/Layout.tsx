@@ -22,7 +22,7 @@ function UserAvatar({ name, avatarUrl, size = 8, textSize = "xs" }: { name?: str
   if (avatarUrl) {
     return (
       <img
-        src={`/api/storage${avatarUrl}`}
+        src={avatarUrl}
         alt={name}
         className={`${sizeClass} rounded-full object-cover flex-shrink-0`}
       />
