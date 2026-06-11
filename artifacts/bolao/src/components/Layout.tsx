@@ -55,7 +55,7 @@ const mainMobileItems = [
   { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
   { href: "/dashboard", label: "Início", icon: LayoutDashboard },
   { href: "/matches", label: "Jogos", icon: Calendar },
-  { href: "/ranking", label: "Ranking", icon: Trophy },
+ 
   { href: "/predictions", label: "Palpites", icon: Target },
   { href: "/tabela", label: "Tabela", icon: TableProperties },
   { href: "/rules", label: "Regras", icon: BookOpen },
