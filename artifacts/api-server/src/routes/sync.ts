@@ -11,6 +11,19 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+function safeScore(
+  newScore: number | null | undefined,
+  oldScore: number | null
+): number | null {
+  if (newScore === null || newScore === undefined) return oldScore;
+
+  if (oldScore !== null && newScore < oldScore) {
+    return oldScore;
+  }
+
+  return newScore;
+}
+
 router.post(
   "/admin/sync-matches",
   requireAdmin,
@@ -29,6 +42,8 @@ router.post(
           .select({
             id: matchesTable.id,
             status: matchesTable.status,
+            homeScore: matchesTable.homeScore,
+            awayScore: matchesTable.awayScore,
           })
           .from(matchesTable)
           .where(eq(matchesTable.externalId, fdMatch.id));
@@ -53,8 +68,8 @@ router.post(
             awayLogo: mapped.awayLogo,
             matchDate: mapped.matchDate,
             status: nextStatus,
-            homeScore: mapped.homeScore,
-            awayScore: mapped.awayScore,
+            homeScore: safeScore(mapped.homeScore, existing.homeScore),
+            awayScore: safeScore(mapped.awayScore, existing.awayScore),
           })
           .where(eq(matchesTable.externalId, fdMatch.id));
 
@@ -107,8 +122,8 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
       .update(matchesTable)
       .set({
         status: "live",
-        homeScore: mapped.homeScore ?? existing.homeScore,
-        awayScore: mapped.awayScore ?? existing.awayScore,
+        homeScore: safeScore(mapped.homeScore, existing.homeScore),
+        awayScore: safeScore(mapped.awayScore, existing.awayScore),
       })
       .where(eq(matchesTable.externalId, fdMatch.id));
 
@@ -141,9 +156,7 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
         }
       );
 
-      if (!response.ok) {
-        continue;
-      }
+      if (!response.ok) continue;
 
       const data = (await response.json()) as {
         status: string;
@@ -160,19 +173,21 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
           .update(matchesTable)
           .set({
             status: "finished",
-            homeScore: data.score?.fullTime?.home ?? match.homeScore,
-            awayScore: data.score?.fullTime?.away ?? match.awayScore,
+            homeScore: safeScore(
+              data.score?.fullTime?.home,
+              match.homeScore
+            ),
+            awayScore: safeScore(
+              data.score?.fullTime?.away,
+              match.awayScore
+            ),
           })
           .where(eq(matchesTable.id, match.id));
 
         updated++;
       }
-
-      // Importante:
-      // Se a API não confirmar FINISHED/AWARDED,
-      // mantém como live e não altera o status.
     } catch {
-      // Se a API falhar, mantém o jogo como live.
+      // Se a API falhar, mantém o jogo como live e preserva o placar antigo.
     }
   }
 
