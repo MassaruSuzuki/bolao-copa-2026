@@ -6,6 +6,7 @@ import {
   fetchAllWcMatches,
   fetchLiveWcMatches,
   mapFdMatch,
+  toInternalStatus,
 } from "../services/footballData";
 import { logger } from "../lib/logger";
 
@@ -30,6 +31,58 @@ function pickScore(score?: {
   };
 }
 
+async function fetchMatchByExternalId(externalId: number) {
+  const response = await fetch(
+    `https://api.football-data.org/v4/matches/${externalId}`,
+    {
+      headers: {
+        "X-Auth-Token": process.env["FOOTBALL_DATA_API_KEY"] ?? "",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+
+    logger.warn(
+      {
+        externalId,
+        status: response.status,
+        body: text,
+      },
+      "Falha ao buscar partida individual"
+    );
+
+    return null;
+  }
+
+  return response.json() as Promise<{
+    id: number;
+    utcDate: string;
+    status:
+      | "SCHEDULED"
+      | "TIMED"
+      | "IN_PLAY"
+      | "PAUSED"
+      | "FINISHED"
+      | "SUSPENDED"
+      | "POSTPONED"
+      | "CANCELLED"
+      | "AWARDED";
+    score?: {
+      winner?: string | null;
+      fullTime?: {
+        home: number | null;
+        away: number | null;
+      };
+      halfTime?: {
+        home: number | null;
+        away: number | null;
+      };
+    };
+  }>;
+}
+
 router.post(
   "/admin/sync-matches",
   requireAdmin,
@@ -43,8 +96,6 @@ router.post(
         if (!fdMatch.homeTeam?.name || !fdMatch.awayTeam?.name) continue;
 
         const mapped = mapFdMatch(fdMatch);
-        console.log("FD LIVE MATCH:", JSON.stringify(fdMatch, null, 2));
-console.log("MAPPED:", mapped);
 
         const [existing] = await db
           .select({
@@ -148,55 +199,25 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
     .from(matchesTable)
     .where(eq(matchesTable.status, "live"));
 
-  const liveExternalIds = new Set(fdMatches.map((m) => m.id));
-
   for (const match of liveInDb) {
     if (!match.externalId) continue;
-    if (liveExternalIds.has(match.externalId)) continue;
 
-    try {
-      const response = await fetch(
-        `https://api.football-data.org/v4/matches/${match.externalId}`,
-        {
-          headers: {
-            "X-Auth-Token": process.env["FOOTBALL_DATA_API_KEY"] ?? "",
-          },
-        }
-      );
+    const individualMatch = await fetchMatchByExternalId(match.externalId);
+    if (!individualMatch) continue;
 
-      if (!response.ok) continue;
+    const currentScore = pickScore(individualMatch.score);
+    const internalStatus = toInternalStatus(individualMatch.status);
 
-      const data = (await response.json()) as {
-        status: string;
-        score?: {
-          fullTime?: {
-            home: number | null;
-            away: number | null;
-          };
-          halfTime?: {
-            home: number | null;
-            away: number | null;
-          };
-        };
-      };
+    await db
+      .update(matchesTable)
+      .set({
+        status: internalStatus,
+        homeScore: safeScore(currentScore.home, match.homeScore),
+        awayScore: safeScore(currentScore.away, match.awayScore),
+      })
+      .where(eq(matchesTable.id, match.id));
 
-      const currentScore = pickScore(data.score);
-
-      if (data.status === "FINISHED" || data.status === "AWARDED") {
-        await db
-          .update(matchesTable)
-          .set({
-            status: "finished",
-            homeScore: safeScore(currentScore.home, match.homeScore),
-            awayScore: safeScore(currentScore.away, match.awayScore),
-          })
-          .where(eq(matchesTable.id, match.id));
-
-        updated++;
-      }
-    } catch {
-      // Se a API falhar, mantém o jogo como live e preserva o placar antigo.
-    }
+    updated++;
   }
 
   logger.info({ updated }, "Live scores synced");

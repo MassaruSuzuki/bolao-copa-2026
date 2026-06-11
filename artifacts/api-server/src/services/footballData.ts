@@ -52,19 +52,23 @@ function toInternalStatus(fdStatus: FdStatus): "upcoming" | "live" | "finished" 
 }
 
 function getCurrentScore(m: FdMatch) {
+  const fullHome = m.score.fullTime.home;
+  const fullAway = m.score.fullTime.away;
+
+  const halfHome = m.score.halfTime.home;
+  const halfAway = m.score.halfTime.away;
+
   return {
-    home:
-      m.score.fullTime.home ??
-      m.score.halfTime.home ??
-      null,
-    away:
-      m.score.fullTime.away ??
-      m.score.halfTime.away ??
-      null,
+    home: fullHome ?? halfHome ?? 0,
+    away: fullAway ?? halfAway ?? 0,
   };
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
+  if (!API_KEY) {
+    throw new Error("FOOTBALL_DATA_API_KEY não configurada no ambiente.");
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: {
       "X-Auth-Token": API_KEY,
@@ -73,6 +77,15 @@ async function fetchJson<T>(path: string): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
+
+    logger.error(
+      {
+        path,
+        status: res.status,
+        body: text,
+      },
+      "Erro ao buscar dados na football-data.org"
+    );
 
     throw new Error(`football-data.org ${path} → ${res.status}: ${text}`);
   }
@@ -90,10 +103,29 @@ export async function fetchAllWcMatches(): Promise<FdMatch[]> {
 
 export async function fetchLiveWcMatches(): Promise<FdMatch[]> {
   const data = await fetchJson<{ matches: FdMatch[] }>(
-    `/competitions/${COMPETITION}/matches?status=IN_PLAY,PAUSED`
+    `/competitions/${COMPETITION}/matches?season=${SEASON}`
   );
 
-  return data.matches;
+  const liveMatches = data.matches.filter(
+    (match) => match.status === "IN_PLAY" || match.status === "PAUSED"
+  );
+
+  logger.info(
+    {
+      totalMatches: data.matches.length,
+      liveMatches: liveMatches.length,
+      liveIds: liveMatches.map((m) => ({
+        id: m.id,
+        home: m.homeTeam.shortName || m.homeTeam.name,
+        away: m.awayTeam.shortName || m.awayTeam.name,
+        status: m.status,
+        score: m.score,
+      })),
+    },
+    "Jogos ao vivo encontrados na football-data.org"
+  );
+
+  return liveMatches;
 }
 
 export function mapFdMatch(m: FdMatch) {
