@@ -43,6 +43,8 @@ router.post(
         if (!fdMatch.homeTeam?.name || !fdMatch.awayTeam?.name) continue;
 
         const mapped = mapFdMatch(fdMatch);
+        console.log("FD LIVE MATCH:", JSON.stringify(fdMatch, null, 2));
+console.log("MAPPED:", mapped);
 
         const [existing] = await db
           .select({

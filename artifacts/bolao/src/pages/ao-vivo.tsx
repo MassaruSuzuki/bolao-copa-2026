@@ -56,7 +56,11 @@ type LiveMatch = {
 };
 
 const StableYoutubePlayer = memo(
-  function StableYoutubePlayer({ youtubeUrl }: { youtubeUrl?: string | null }) {
+  function StableYoutubePlayer({
+    youtubeUrl,
+  }: {
+    youtubeUrl?: string | null;
+  }) {
     const embedUrlRef = useRef<string | null>(null);
 
     if (!embedUrlRef.current && youtubeUrl) {
@@ -65,7 +69,7 @@ const StableYoutubePlayer = memo(
 
     const embedUrl = embedUrlRef.current;
 
-    if (!embedUrl) {
+    if (!youtubeUrl || !embedUrl) {
       return (
         <div className="w-full">
           <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -73,8 +77,18 @@ const StableYoutubePlayer = memo(
             <span>Transmissão ao vivo</span>
           </div>
 
-          <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-white/10 bg-black text-sm text-muted-foreground">
-            Transmissão indisponível
+          <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-black p-6 text-center">
+            <Youtube className="h-10 w-10 text-red-500" />
+
+            <div>
+              <p className="text-sm font-semibold text-white">
+                Transmissão indisponível
+              </p>
+
+              <p className="mt-1 text-xs text-muted-foreground">
+                Nenhum link de transmissão foi informado.
+              </p>
+            </div>
           </div>
         </div>
       );
@@ -87,14 +101,32 @@ const StableYoutubePlayer = memo(
           <span>Transmissão ao vivo</span>
         </div>
 
-        <iframe
-          src={embedUrl}
-          title="Transmissão ao vivo"
-          className="aspect-video w-full rounded-xl border border-white/10 bg-black"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
+          <iframe
+            src={embedUrl}
+            title="Transmissão ao vivo"
+            className="aspect-video w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={() =>
+              window.open(
+                youtubeUrl,
+                "_blank",
+                "noopener,noreferrer"
+              )
+            }
+            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+          >
+            <Youtube className="h-4 w-4" />
+            Assistir no YouTube
+          </button>
+        </div>
       </div>
     );
   },
