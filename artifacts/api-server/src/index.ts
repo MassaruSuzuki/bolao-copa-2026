@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startLivePoller } from "./services/livePoller";
+// import { startLivePoller } from "./services/livePoller";
 import { seedDefaultAdmin } from "./lib/seedAdmin";
 // import { syncMatchesOnStartup } from "./lib/syncMatchesOnStartup";
 
@@ -24,7 +24,10 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
-  startLivePoller();
+  // Desativado temporariamente para não sobrescrever status manual dos jogos.
+  // Depois vamos corrigir o livePoller.ts e religar.
+  // startLivePoller();
+
   seedDefaultAdmin();
 
   // Desativado para não sobrescrever jogos colocados manualmente como Ao Vivo.

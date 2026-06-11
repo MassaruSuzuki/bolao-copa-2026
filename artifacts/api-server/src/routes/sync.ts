@@ -36,28 +36,29 @@ router.post(
         if (!existing) {
           await db.insert(matchesTable).values(mapped);
           created++;
-        } else {
-          const nextStatus =
-            existing.status === "live" && mapped.status !== "finished"
-              ? "live"
-              : mapped.status;
-
-          await db
-            .update(matchesTable)
-            .set({
-              homeTeam: mapped.homeTeam,
-              awayTeam: mapped.awayTeam,
-              homeLogo: mapped.homeLogo,
-              awayLogo: mapped.awayLogo,
-              matchDate: mapped.matchDate,
-              status: nextStatus,
-              homeScore: mapped.homeScore,
-              awayScore: mapped.awayScore,
-            })
-            .where(eq(matchesTable.externalId, fdMatch.id));
-
-          updated++;
+          continue;
         }
+
+        const nextStatus =
+          existing.status === "live" && mapped.status !== "finished"
+            ? "live"
+            : mapped.status;
+
+        await db
+          .update(matchesTable)
+          .set({
+            homeTeam: mapped.homeTeam,
+            awayTeam: mapped.awayTeam,
+            homeLogo: mapped.homeLogo,
+            awayLogo: mapped.awayLogo,
+            matchDate: mapped.matchDate,
+            status: nextStatus,
+            homeScore: mapped.homeScore,
+            awayScore: mapped.awayScore,
+          })
+          .where(eq(matchesTable.externalId, fdMatch.id));
+
+        updated++;
       }
 
       logger.info({ created, updated }, "Sync completed");
@@ -93,29 +94,33 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
     const [existing] = await db
       .select({
         id: matchesTable.id,
+        status: matchesTable.status,
+        homeScore: matchesTable.homeScore,
+        awayScore: matchesTable.awayScore,
       })
       .from(matchesTable)
       .where(eq(matchesTable.externalId, fdMatch.id));
 
-    if (existing) {
-      await db
-        .update(matchesTable)
-        .set({
-          status: "live",
-          homeScore: mapped.homeScore,
-          awayScore: mapped.awayScore,
-        })
-        .where(eq(matchesTable.externalId, fdMatch.id));
+    if (!existing) continue;
 
-      updated++;
-    }
+    await db
+      .update(matchesTable)
+      .set({
+        status: "live",
+        homeScore: mapped.homeScore ?? existing.homeScore,
+        awayScore: mapped.awayScore ?? existing.awayScore,
+      })
+      .where(eq(matchesTable.externalId, fdMatch.id));
+
+    updated++;
   }
 
   const liveInDb = await db
     .select({
       id: matchesTable.id,
       externalId: matchesTable.externalId,
-      matchDate: matchesTable.matchDate,
+      homeScore: matchesTable.homeScore,
+      awayScore: matchesTable.awayScore,
     })
     .from(matchesTable)
     .where(eq(matchesTable.status, "live"));
@@ -136,32 +141,36 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
         }
       );
 
-      if (!response.ok) continue;
+      if (!response.ok) {
+        continue;
+      }
 
       const data = (await response.json()) as {
         status: string;
-        score: {
-          fullTime: {
+        score?: {
+          fullTime?: {
             home: number | null;
             away: number | null;
           };
         };
       };
 
-      let nextStatus: "upcoming" | "live" | "finished" = "live";
-
       if (data.status === "FINISHED" || data.status === "AWARDED") {
-        nextStatus = "finished";
+        await db
+          .update(matchesTable)
+          .set({
+            status: "finished",
+            homeScore: data.score?.fullTime?.home ?? match.homeScore,
+            awayScore: data.score?.fullTime?.away ?? match.awayScore,
+          })
+          .where(eq(matchesTable.id, match.id));
+
+        updated++;
       }
 
-      await db
-        .update(matchesTable)
-        .set({
-          status: nextStatus,
-          homeScore: data.score.fullTime.home ?? null,
-          awayScore: data.score.fullTime.away ?? null,
-        })
-        .where(eq(matchesTable.id, match.id));
+      // Importante:
+      // Se a API não confirmar FINISHED/AWARDED,
+      // mantém como live e não altera o status.
     } catch {
       // Se a API falhar, mantém o jogo como live.
     }
