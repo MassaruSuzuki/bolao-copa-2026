@@ -2,65 +2,86 @@ import { Router, type IRouter } from "express";
 import { db, matchesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
-import { fetchAllWcMatches, fetchLiveWcMatches, mapFdMatch } from "../services/footballData";
+import {
+  fetchAllWcMatches,
+  fetchLiveWcMatches,
+  mapFdMatch,
+} from "../services/footballData";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-router.post("/admin/sync-matches", requireAdmin, async (req, res): Promise<void> => {
-  try {
-    const fdMatches = await fetchAllWcMatches();
-    let created = 0;
-    let updated = 0;
+router.post(
+  "/admin/sync-matches",
+  requireAdmin,
+  async (_req, res): Promise<void> => {
+    try {
+      const fdMatches = await fetchAllWcMatches();
+      let created = 0;
+      let updated = 0;
 
-    for (const fdMatch of fdMatches) {
-      // Skip matches where teams are not yet defined (knockout stage placeholders)
-      if (!fdMatch.homeTeam?.name || !fdMatch.awayTeam?.name) continue;
+      for (const fdMatch of fdMatches) {
+        if (!fdMatch.homeTeam?.name || !fdMatch.awayTeam?.name) continue;
 
-      const mapped = mapFdMatch(fdMatch);
-      const existing = await db
-        .select({ id: matchesTable.id })
-        .from(matchesTable)
-        .where(eq(matchesTable.externalId, fdMatch.id));
+        const mapped = mapFdMatch(fdMatch);
 
-      if (existing.length === 0) {
-        await db.insert(matchesTable).values(mapped);
-        created++;
-      } else {
-        await db
-          .update(matchesTable)
-          .set({
-            homeTeam: mapped.homeTeam,
-            awayTeam: mapped.awayTeam,
-            homeLogo: mapped.homeLogo,
-            awayLogo: mapped.awayLogo,
-            matchDate: mapped.matchDate,
-            status: mapped.status,
-            homeScore: mapped.homeScore,
-            awayScore: mapped.awayScore,
+        const [existing] = await db
+          .select({
+            id: matchesTable.id,
+            status: matchesTable.status,
           })
+          .from(matchesTable)
           .where(eq(matchesTable.externalId, fdMatch.id));
-        updated++;
+
+        if (!existing) {
+          await db.insert(matchesTable).values(mapped);
+          created++;
+        } else {
+          const nextStatus =
+            existing.status === "live" && mapped.status !== "finished"
+              ? "live"
+              : mapped.status;
+
+          await db
+            .update(matchesTable)
+            .set({
+              homeTeam: mapped.homeTeam,
+              awayTeam: mapped.awayTeam,
+              homeLogo: mapped.homeLogo,
+              awayLogo: mapped.awayLogo,
+              matchDate: mapped.matchDate,
+              status: nextStatus,
+              homeScore: mapped.homeScore,
+              awayScore: mapped.awayScore,
+            })
+            .where(eq(matchesTable.externalId, fdMatch.id));
+
+          updated++;
+        }
       }
+
+      logger.info({ created, updated }, "Sync completed");
+      res.json({ ok: true, created, updated, total: fdMatches.length });
+    } catch (err) {
+      logger.error({ err }, "Sync failed");
+      res.status(500).json({ error: String(err) });
     }
-
-    logger.info({ created, updated }, "Sync completed");
-    res.json({ ok: true, created, updated, total: fdMatches.length });
-  } catch (err) {
-    logger.error({ err }, "Sync failed");
-    res.status(500).json({ error: String(err) });
   }
-});
+);
 
-router.post("/admin/sync-live", requireAdmin, async (req, res): Promise<void> => {
-  try {
-    const result = await syncLiveScores();
-    res.json({ ok: true, ...result });
-  } catch (err) {
-    logger.error({ err }, "Live sync failed");
-    res.status(500).json({ error: String(err) });
+router.post(
+  "/admin/sync-live",
+  requireAdmin,
+  async (_req, res): Promise<void> => {
+    try {
+      const result = await syncLiveScores();
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      logger.error({ err }, "Live sync failed");
+      res.status(500).json({ error: String(err) });
+    }
   }
-});
+);
 
 export async function syncLiveScores(): Promise<{ updated: number }> {
   const fdMatches = await fetchLiveWcMatches();
@@ -69,12 +90,14 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
   for (const fdMatch of fdMatches) {
     const mapped = mapFdMatch(fdMatch);
 
-    const existing = await db
-      .select({ id: matchesTable.id })
+    const [existing] = await db
+      .select({
+        id: matchesTable.id,
+      })
       .from(matchesTable)
       .where(eq(matchesTable.externalId, fdMatch.id));
 
-    if (existing.length > 0) {
+    if (existing) {
       await db
         .update(matchesTable)
         .set({
@@ -99,14 +122,13 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
 
   const liveExternalIds = new Set(fdMatches.map((m) => m.id));
 
-  for (const m of liveInDb) {
-    if (!m.externalId) continue;
-
-    if (liveExternalIds.has(m.externalId)) continue;
+  for (const match of liveInDb) {
+    if (!match.externalId) continue;
+    if (liveExternalIds.has(match.externalId)) continue;
 
     try {
-      const res = await fetch(
-        `https://api.football-data.org/v4/matches/${m.externalId}`,
+      const response = await fetch(
+        `https://api.football-data.org/v4/matches/${match.externalId}`,
         {
           headers: {
             "X-Auth-Token": process.env["FOOTBALL_DATA_API_KEY"] ?? "",
@@ -114,9 +136,9 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
         }
       );
 
-      if (!res.ok) continue;
+      if (!response.ok) continue;
 
-      const data = (await res.json()) as {
+      const data = (await response.json()) as {
         status: string;
         score: {
           fullTime: {
@@ -126,31 +148,22 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
         };
       };
 
-      let newStatus: "upcoming" | "live" | "finished" = "live";
+      let nextStatus: "upcoming" | "live" | "finished" = "live";
 
       if (data.status === "FINISHED" || data.status === "AWARDED") {
-        newStatus = "finished";
-      }
-
-      if (
-        data.status === "IN_PLAY" ||
-        data.status === "PAUSED" ||
-        data.status === "TIMED" ||
-        data.status === "SCHEDULED"
-      ) {
-        newStatus = "live";
+        nextStatus = "finished";
       }
 
       await db
         .update(matchesTable)
         .set({
-          status: newStatus,
+          status: nextStatus,
           homeScore: data.score.fullTime.home ?? null,
           awayScore: data.score.fullTime.away ?? null,
         })
-        .where(eq(matchesTable.id, m.id));
+        .where(eq(matchesTable.id, match.id));
     } catch {
-      // Se a API falhar, mantém como live para não derrubar o jogo da tela.
+      // Se a API falhar, mantém o jogo como live.
     }
   }
 
