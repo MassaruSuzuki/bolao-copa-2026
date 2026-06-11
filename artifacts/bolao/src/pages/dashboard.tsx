@@ -6,8 +6,6 @@ import {
   getGetLiveRankingQueryKey,
   useGetRanking,
   getGetRankingQueryKey,
-  useListMatches,
-  getListMatchesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
@@ -35,12 +33,10 @@ function StatusBadge({
   status: string;
   matchDate?: string;
 }) {
-  const now = new Date();
   const gameDate = matchDate ? new Date(matchDate) : null;
-  const gameStarted = gameDate ? gameDate <= now : false;
-  const isToday = gameDate ? isSameDay(gameDate, now) : false;
+  const isToday = gameDate ? isSameDay(gameDate, new Date()) : false;
 
-  if (status === "live" || gameStarted) {
+  if (status === "live") {
     return (
       <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">
         Ao Vivo
@@ -90,7 +86,7 @@ function toLiveShape(entries: RankingEntry[] | undefined) {
 }
 
 function getPoints(entry: any) {
-  return entry?.projectedTotal ?? entry?.basePoints ?? 0;
+  return entry?.projectedTotal ?? entry?.basePoints ?? entry?.totalPoints ?? 0;
 }
 
 export default function DashboardPage() {
@@ -108,20 +104,12 @@ export default function DashboardPage() {
   const { data, isLoading } = useGetDashboard({
     query: {
       queryKey: getGetDashboardQueryKey(),
+      refetchInterval: 5_000,
+      refetchOnWindowFocus: true,
     },
   });
 
-  const { data: liveMatches } = useListMatches(
-    { status: "live" },
-    {
-      query: {
-        queryKey: getListMatchesQueryKey({ status: "live" }),
-        refetchInterval: 10_000,
-      },
-    }
-  );
-
-  const allLiveMatches = liveMatches ?? data?.liveMatches ?? [];
+  const allLiveMatches = data?.liveMatches ?? [];
   const hasLiveMatch = allLiveMatches.length > 0;
   const hasMultipleLiveMatches = allLiveMatches.length > 1;
   const mainLiveMatch = allLiveMatches[liveIndex] ?? allLiveMatches[0] ?? null;
@@ -150,6 +138,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (hasLiveMatch) {
       pollRef.current = setInterval(() => {
+        qc.invalidateQueries({ queryKey: getGetDashboardQueryKey() });
         qc.invalidateQueries({ queryKey: getGetLiveRankingQueryKey() });
       }, 10_000);
     }
@@ -164,6 +153,11 @@ export default function DashboardPage() {
   ).slice(0, 8);
 
   const rankingLoading = hasLiveMatch ? loadingLive : false;
+
+  const firstPlace = rankingEntries[0];
+  const secondPlace = rankingEntries[1];
+  const thirdPlace = rankingEntries[2];
+  const otherPlaces = rankingEntries.slice(3);
 
   const stats = [
     {
@@ -213,11 +207,6 @@ export default function DashboardPage() {
     );
   }
 
-  const firstPlace = rankingEntries[0];
-  const secondPlace = rankingEntries[1];
-  const thirdPlace = rankingEntries[2];
-  const otherPlaces = rankingEntries.slice(3);
-
   return (
     <Layout>
       <div className="p-6 space-y-6">
@@ -258,7 +247,7 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border relative">
+              <div className="px-5 py-4 border-b border-border">
                 <h2 className="font-semibold text-sm text-foreground text-center w-full">
                   Ao Vivo
                 </h2>
@@ -317,9 +306,11 @@ export default function DashboardPage() {
                             <span className="text-4xl font-black text-primary tabular-nums">
                               {mainLiveMatch.homeScore}
                             </span>
+
                             <span className="text-xl font-bold text-white/50">
                               ×
                             </span>
+
                             <span className="text-4xl font-black text-primary tabular-nums">
                               {mainLiveMatch.awayScore}
                             </span>
@@ -434,17 +425,17 @@ export default function DashboardPage() {
               </div>
 
               <div className="divide-y divide-border">
-                {data?.upcomingMatches?.slice(0, 4).map((m) => (
-                  <Link key={m.id} href={`/matches/${m.id}`}>
+                {data?.upcomingMatches?.slice(0, 4).map((match) => (
+                  <Link key={match.id} href={`/matches/${match.id}`}>
                     <div
                       className="px-5 py-3 hover:bg-muted/30 cursor-pointer transition-colors"
-                      data-testid={`match-upcoming-${m.id}`}
+                      data-testid={`match-upcoming-${match.id}`}
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2 text-sm font-medium min-w-0">
                           <img
-                            src={m.homeLogo ?? ""}
-                            alt={m.homeTeam}
+                            src={match.homeLogo ?? ""}
+                            alt={match.homeTeam}
                             className="w-5 h-5 object-contain"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display =
@@ -452,13 +443,13 @@ export default function DashboardPage() {
                             }}
                           />
 
-                          <span className="truncate">{m.homeTeam}</span>
+                          <span className="truncate">{match.homeTeam}</span>
                           <span className="text-muted-foreground">vs</span>
-                          <span className="truncate">{m.awayTeam}</span>
+                          <span className="truncate">{match.awayTeam}</span>
 
                           <img
-                            src={m.awayLogo ?? ""}
-                            alt={m.awayTeam}
+                            src={match.awayLogo ?? ""}
+                            alt={match.awayTeam}
                             className="w-5 h-5 object-contain"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display =
@@ -468,13 +459,13 @@ export default function DashboardPage() {
                         </div>
 
                         <StatusBadge
-                          status={m.status}
-                          matchDate={m.matchDate}
+                          status={match.status}
+                          matchDate={match.matchDate}
                         />
                       </div>
 
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {format(new Date(m.matchDate), "dd MMM, HH:mm", {
+                        {format(new Date(match.matchDate), "dd MMM, HH:mm", {
                           locale: ptBR,
                         })}
                       </p>
@@ -492,7 +483,7 @@ export default function DashboardPage() {
           </div>
 
           <div
-            className={`bg-card border rounded-xl overflow-hidden ${
+            className={`hidden md:block bg-card border rounded-xl overflow-hidden ${
               hasLiveMatch ? "border-primary/20" : "border-card-border"
             }`}
           >
@@ -593,6 +584,7 @@ export default function DashboardPage() {
                           <p className="text-lg font-bold text-primary">
                             {getPoints(entry)}
                           </p>
+
                           <p className="text-xs text-muted-foreground">pts</p>
                         </div>
                       </div>
