@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { useListMatches, getListMatchesQueryKey, useCreateMatch, useUpdateMatch } from "@workspace/api-client-react";
+import {
+  useListMatches,
+  getListMatchesQueryKey,
+  useCreateMatch,
+  useUpdateMatch,
+} from "@workspace/api-client-react";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
@@ -8,16 +13,40 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Plus, Pencil, Trash2, Shield, RefreshCw, Zap, Users, CheckCircle, XCircle, Clock } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Shield,
+  RefreshCw,
+  Zap,
+  Users,
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText,
+} from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
-type AdminTab = "jogos" | "participantes";
+type AdminTab = "participantes" | "jogos" | "palpites";
 
 interface EditState {
   id: number;
@@ -40,18 +69,65 @@ interface ParticipantUser {
   createdAt: string;
 }
 
+interface AdminPrediction {
+  id: number;
+  userId: number;
+  userName: string;
+  userEmail?: string;
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeLogo?: string | null;
+  awayLogo?: string | null;
+  matchDate: string;
+  status: string;
+  homeGoals: number;
+  awayGoals: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 function useAdminUsers() {
   return useQuery<ParticipantUser[]>({
     queryKey: ["admin-users"],
     queryFn: async () => {
       const token = localStorage.getItem("bolao_token");
+
       const res = await fetch("/api/admin/users", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      if (!res.ok) throw new Error("Erro ao carregar usuários");
+      if (!res.ok) {
+        throw new Error("Erro ao carregar usuários");
+      }
 
       return res.json() as Promise<ParticipantUser[]>;
+    },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+}
+
+function useAdminPredictions() {
+  return useQuery<AdminPrediction[]>({
+    queryKey: ["admin-predictions"],
+    queryFn: async () => {
+      const token = localStorage.getItem("bolao_token");
+
+      const res = await fetch("/api/admin/predictions", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Erro ao carregar palpites");
+      }
+
+      return res.json() as Promise<AdminPrediction[]>;
     },
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -68,7 +144,11 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const saved = localStorage.getItem("admin_tab");
 
-    if (saved === "jogos" || saved === "participantes") {
+    if (
+      saved === "participantes" ||
+      saved === "jogos" ||
+      saved === "palpites"
+    ) {
       return saved;
     }
 
@@ -86,7 +166,12 @@ export default function AdminPage() {
   const [processingUser, setProcessingUser] = useState<number | null>(null);
 
   const { data: participants, isLoading: loadingUsers } = useAdminUsers();
-  const pendingCount = (participants ?? []).filter((u) => u.status === "pending").length;
+  const { data: predictions, isLoading: loadingPredictions } =
+    useAdminPredictions();
+
+  const pendingCount = (participants ?? []).filter(
+    (u) => u.status === "pending"
+  ).length;
 
   const [newMatch, setNewMatch] = useState({
     homeTeam: "",
@@ -96,9 +181,14 @@ export default function AdminPage() {
     matchDate: "",
   });
 
-  const { data: matches, isLoading: loadingMatches } = useListMatches(undefined, {
-    query: { queryKey: getListMatchesQueryKey() },
-  });
+  const { data: matches, isLoading: loadingMatches } = useListMatches(
+    undefined,
+    {
+      query: {
+        queryKey: getListMatchesQueryKey(),
+      },
+    }
+  );
 
   const createMutation = useCreateMatch();
   const updateMutation = useUpdateMatch();
@@ -113,14 +203,23 @@ export default function AdminPage() {
 
     try {
       const token = localStorage.getItem("bolao_token");
+
       const res = await fetch("/api/admin/sync-matches", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      const data = await res.json() as { created?: number; updated?: number; error?: string };
+      const data = (await res.json()) as {
+        created?: number;
+        updated?: number;
+        error?: string;
+      };
 
-      if (!res.ok) throw new Error(data.error ?? "Erro");
+      if (!res.ok) {
+        throw new Error(data.error ?? "Erro");
+      }
 
       toast({
         title: "Sincronizado!",
@@ -144,14 +243,22 @@ export default function AdminPage() {
 
     try {
       const token = localStorage.getItem("bolao_token");
+
       const res = await fetch("/api/admin/sync-live", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      const data = await res.json() as { updated?: number; error?: string };
+      const data = (await res.json()) as {
+        updated?: number;
+        error?: string;
+      };
 
-      if (!res.ok) throw new Error(data.error ?? "Erro");
+      if (!res.ok) {
+        throw new Error(data.error ?? "Erro");
+      }
 
       toast({
         title: "Placares atualizados!",
@@ -175,12 +282,17 @@ export default function AdminPage() {
 
     try {
       const token = localStorage.getItem("bolao_token");
+
       const res = await fetch(`/api/admin/users/${userId}/approve`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      if (!res.ok) throw new Error("Erro ao aprovar");
+      if (!res.ok) {
+        throw new Error("Erro ao aprovar");
+      }
 
       toast({ title: "Participante aprovado!" });
       qc.invalidateQueries({ queryKey: ["admin-users"] });
@@ -200,12 +312,17 @@ export default function AdminPage() {
 
     try {
       const token = localStorage.getItem("bolao_token");
+
       const res = await fetch(`/api/admin/users/${userId}/reject`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      if (!res.ok) throw new Error("Erro ao recusar");
+      if (!res.ok) {
+        throw new Error("Erro ao recusar");
+      }
 
       toast({ title: "Participante recusado." });
       qc.invalidateQueries({ queryKey: ["admin-users"] });
@@ -257,41 +374,45 @@ export default function AdminPage() {
             variant: "destructive",
           });
         },
-      },
+      }
     );
   };
 
   const handleDeleteMatch = async (matchId: number) => {
-  const confirmDelete = window.confirm("Tem certeza que deseja excluir este jogo?");
+    const confirmDelete = window.confirm(
+      "Tem certeza que deseja excluir este jogo?"
+    );
 
-  if (!confirmDelete) return;
+    if (!confirmDelete) return;
 
-  try {
-    const token = localStorage.getItem("bolao_token");
+    try {
+      const token = localStorage.getItem("bolao_token");
 
-    const res = await fetch(`/api/admin/matches/${matchId}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+      const res = await fetch(`/api/admin/matches/${matchId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    if (!res.ok) {
-      throw new Error("Erro ao excluir jogo");
+      if (!res.ok) {
+        throw new Error("Erro ao excluir jogo");
+      }
+
+      toast({ title: "Jogo excluído com sucesso!" });
+      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: err instanceof Error ? err.message : "Erro ao excluir jogo",
+        variant: "destructive",
+      });
     }
+  };
 
-    toast({ title: "Jogo excluído com sucesso!" });
-    qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-  } catch (err) {
-    toast({
-      title: "Erro",
-      description: err instanceof Error ? err.message : "Erro ao excluir jogo",
-      variant: "destructive",
-    });
-  }
-};
-
-  const openEdit = (m: typeof matches extends (infer T)[] | undefined ? T : never) => {
+  const openEdit = (
+    m: typeof matches extends (infer T)[] | undefined ? T : never
+  ) => {
     if (!m) return;
 
     setActiveTab("jogos");
@@ -302,10 +423,15 @@ export default function AdminPage() {
       awayTeam: (m as { awayTeam: string }).awayTeam,
       homeLogo: (m as { homeLogo?: string | null }).homeLogo ?? "",
       awayLogo: (m as { awayLogo?: string | null }).awayLogo ?? "",
-      matchDate: format(new Date((m as { matchDate: string }).matchDate), "yyyy-MM-dd'T'HH:mm"),
+      matchDate: format(
+        new Date((m as { matchDate: string }).matchDate),
+        "yyyy-MM-dd'T'HH:mm"
+      ),
       status: (m as { status: string }).status as MatchStatus,
-      homeScore: (m as { homeScore?: number | null }).homeScore?.toString() ?? "",
-      awayScore: (m as { awayScore?: number | null }).awayScore?.toString() ?? "",
+      homeScore:
+        (m as { homeScore?: number | null }).homeScore?.toString() ?? "",
+      awayScore:
+        (m as { awayScore?: number | null }).awayScore?.toString() ?? "",
       youtubeUrl: (m as { youtubeUrl?: string | null }).youtubeUrl ?? "",
     });
   };
@@ -323,8 +449,13 @@ export default function AdminPage() {
       youtubeUrl: editState.youtubeUrl || null,
     };
 
-    if (editState.homeScore !== "") updateData.homeScore = parseInt(editState.homeScore, 10);
-    if (editState.awayScore !== "") updateData.awayScore = parseInt(editState.awayScore, 10);
+    if (editState.homeScore !== "") {
+      updateData.homeScore = parseInt(editState.homeScore, 10);
+    }
+
+    if (editState.awayScore !== "") {
+      updateData.awayScore = parseInt(editState.awayScore, 10);
+    }
 
     updateMutation.mutate(
       {
@@ -345,7 +476,7 @@ export default function AdminPage() {
             variant: "destructive",
           });
         },
-      },
+      }
     );
   };
 
@@ -386,9 +517,15 @@ export default function AdminPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
+
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-foreground">Painel Admin</h1>
-              <p className="text-muted-foreground text-sm">Gerencie participantes e jogos</p>
+              <h1 className="text-xl md:text-2xl font-bold text-foreground">
+                Painel Admin
+              </h1>
+
+              <p className="text-muted-foreground text-sm">
+                Gerencie participantes, jogos e palpites
+              </p>
             </div>
           </div>
 
@@ -404,6 +541,20 @@ export default function AdminPage() {
             </Button>
           )}
 
+          {activeTab === "palpites" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() =>
+                qc.invalidateQueries({ queryKey: ["admin-predictions"] })
+              }
+            >
+              <RefreshCw className="w-4 h-4" />
+              Atualizar
+            </Button>
+          )}
+
           {activeTab === "jogos" && (
             <div className="flex items-center gap-2 flex-wrap">
               <Button
@@ -412,16 +563,29 @@ export default function AdminPage() {
                 disabled={syncingLive}
                 className="gap-2 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10"
               >
-                <Zap className={`w-4 h-4 ${syncingLive ? "animate-pulse" : ""}`} />
+                <Zap
+                  className={`w-4 h-4 ${syncingLive ? "animate-pulse" : ""}`}
+                />
                 {syncingLive ? "Atualizando..." : "Placares Ao Vivo"}
               </Button>
 
-              <Button variant="outline" onClick={handleSyncMatches} disabled={syncing} className="gap-2">
-                <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+              <Button
+                variant="outline"
+                onClick={handleSyncMatches}
+                disabled={syncing}
+                className="gap-2"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`}
+                />
                 {syncing ? "Sincronizando..." : "Sincronizar Copa 2026"}
               </Button>
 
-              <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-new-match">
+              <Button
+                onClick={() => setShowCreate(true)}
+                className="gap-2"
+                data-testid="button-new-match"
+              >
                 <Plus className="w-4 h-4" />
                 Novo Jogo
               </Button>
@@ -430,7 +594,7 @@ export default function AdminPage() {
         </div>
 
         <div
-          className="flex gap-1 p-1 rounded-xl w-fit"
+          className="flex gap-1 p-1 rounded-xl w-fit flex-wrap"
           style={{
             background: "rgba(255,255,255,0.04)",
             border: "1px solid rgba(255,255,255,0.06)",
@@ -439,12 +603,15 @@ export default function AdminPage() {
           <button
             onClick={() => setActiveTab("participantes")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "participantes" ? "text-[#1a1200]" : "text-muted-foreground hover:text-foreground"
+              activeTab === "participantes"
+                ? "text-[#1a1200]"
+                : "text-muted-foreground hover:text-foreground"
             }`}
             style={
               activeTab === "participantes"
                 ? {
-                    background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                    background:
+                      "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
                     boxShadow: "0 2px 8px rgba(201,162,39,0.25)",
                   }
                 : {}
@@ -462,18 +629,42 @@ export default function AdminPage() {
           <button
             onClick={() => setActiveTab("jogos")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "jogos" ? "text-[#1a1200]" : "text-muted-foreground hover:text-foreground"
+              activeTab === "jogos"
+                ? "text-[#1a1200]"
+                : "text-muted-foreground hover:text-foreground"
             }`}
             style={
               activeTab === "jogos"
                 ? {
-                    background: "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                    background:
+                      "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
                     boxShadow: "0 2px 8px rgba(201,162,39,0.25)",
                   }
                 : {}
             }
           >
             Jogos
+          </button>
+
+          <button
+            onClick={() => setActiveTab("palpites")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "palpites"
+                ? "text-[#1a1200]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            style={
+              activeTab === "palpites"
+                ? {
+                    background:
+                      "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
+                    boxShadow: "0 2px 8px rgba(201,162,39,0.25)",
+                  }
+                : {}
+            }
+          >
+            <FileText className="w-4 h-4" />
+            Palpites
           </button>
         </div>
 
@@ -493,15 +684,25 @@ export default function AdminPage() {
               <div className="divide-y divide-border">
                 {[...(participants ?? [])]
                   .sort((a, b) => {
-                    const order: Record<string, number> = { pending: 0, approved: 1, rejected: 2 };
+                    const order: Record<string, number> = {
+                      pending: 0,
+                      approved: 1,
+                      rejected: 2,
+                    };
+
                     return (order[a.status] ?? 3) - (order[b.status] ?? 3);
                   })
                   .map((u) => (
-                    <div key={u.id} className="px-4 py-3 flex items-center gap-3" data-testid={`user-row-${u.id}`}>
+                    <div
+                      key={u.id}
+                      className="px-4 py-3 flex items-center gap-3"
+                      data-testid={`user-row-${u.id}`}
+                    >
                       <div
                         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
                         style={{
-                          background: "linear-gradient(135deg, rgba(201,162,39,0.2) 0%, rgba(201,162,39,0.08) 100%)",
+                          background:
+                            "linear-gradient(135deg, rgba(201,162,39,0.2) 0%, rgba(201,162,39,0.08) 100%)",
                           color: "hsl(43,74%,52%)",
                         }}
                       >
@@ -509,8 +710,12 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {u.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {u.email}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -575,8 +780,89 @@ export default function AdminPage() {
           </div>
         )}
 
-        {activeTab === "jogos" && (
-          loadingMatches ? (
+        {activeTab === "palpites" && (
+          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
+            {loadingPredictions ? (
+              <div className="space-y-px">
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-16 rounded-none" />
+                ))}
+              </div>
+            ) : (predictions ?? []).length === 0 ? (
+              <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                Nenhum palpite encontrado.
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {(predictions ?? []).map((p) => (
+                  <div
+                    key={p.id}
+                    className="px-4 py-3 flex items-center justify-between gap-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {p.userName}
+                      </p>
+
+                      <p className="text-xs text-muted-foreground truncate">
+                        {p.userEmail}
+                      </p>
+
+                      <div className="mt-2 flex items-center gap-2 text-sm">
+                        {p.homeLogo && (
+                          <img
+                            src={p.homeLogo}
+                            alt={p.homeTeam}
+                            className="w-5 h-5 object-contain"
+                          />
+                        )}
+
+                        <span className="font-medium text-foreground">
+                          {p.homeTeam}
+                        </span>
+
+                        <span className="font-bold text-primary">
+                          {p.homeGoals} × {p.awayGoals}
+                        </span>
+
+                        <span className="font-medium text-foreground">
+                          {p.awayTeam}
+                        </span>
+
+                        {p.awayLogo && (
+                          <img
+                            src={p.awayLogo}
+                            alt={p.awayTeam}
+                            className="w-5 h-5 object-contain"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <Badge variant="secondary" className="mb-1">
+                        {p.status === "live"
+                          ? "Ao Vivo"
+                          : p.status === "finished"
+                          ? "Encerrado"
+                          : "Em Breve"}
+                      </Badge>
+
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(p.createdAt), "dd/MM HH:mm", {
+                          locale: ptBR,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "jogos" &&
+          (loadingMatches ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => (
                 <Skeleton key={i} className="h-16 rounded-xl" />
@@ -586,7 +872,11 @@ export default function AdminPage() {
             <div className="bg-card border border-card-border rounded-xl overflow-hidden">
               <div className="divide-y divide-border">
                 {matches?.map((m) => (
-                  <div key={m.id} className="px-4 py-3.5 flex items-center gap-4" data-testid={`admin-match-${m.id}`}>
+                  <div
+                    key={m.id}
+                    className="px-4 py-3.5 flex items-center gap-4"
+                    data-testid={`admin-match-${m.id}`}
+                  >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <img
                         src={m.homeLogo ?? ""}
@@ -597,13 +887,19 @@ export default function AdminPage() {
                         }}
                       />
 
-                      <span className="text-sm font-medium text-foreground truncate">{m.homeTeam}</span>
-
-                      <span className="text-muted-foreground text-sm flex-shrink-0">
-                        {m.homeScore !== null && m.awayScore !== null ? `${m.homeScore} × ${m.awayScore}` : "vs"}
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {m.homeTeam}
                       </span>
 
-                      <span className="text-sm font-medium text-foreground truncate">{m.awayTeam}</span>
+                      <span className="text-muted-foreground text-sm flex-shrink-0">
+                        {m.homeScore !== null && m.awayScore !== null
+                          ? `${m.homeScore} × ${m.awayScore}`
+                          : "vs"}
+                      </span>
+
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {m.awayTeam}
+                      </span>
 
                       <img
                         src={m.awayLogo ?? ""}
@@ -617,26 +913,45 @@ export default function AdminPage() {
 
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-muted-foreground hidden md:block">
-                        {format(new Date(m.matchDate), "dd/MM HH:mm", { locale: ptBR })}
+                        {format(new Date(m.matchDate), "dd/MM HH:mm", {
+                          locale: ptBR,
+                        })}
                       </span>
 
-                      {m.status === "live" && <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Ao Vivo</Badge>}
-                      {m.status === "finished" && <Badge variant="secondary">Encerrado</Badge>}
-                      {m.status === "upcoming" && <Badge className="bg-primary/20 text-primary border-primary/30">Em Breve</Badge>}
+                      {m.status === "live" && (
+                        <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                          Ao Vivo
+                        </Badge>
+                      )}
 
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(m)} data-testid={`button-edit-match-${m.id}`}>
-  <Pencil className="w-4 h-4" />
-</Button>
+                      {m.status === "finished" && (
+                        <Badge variant="secondary">Encerrado</Badge>
+                      )}
 
-<Button
-  variant="ghost"
-  size="icon"
-  className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-  onClick={() => handleDeleteMatch(m.id)}
-  data-testid={`button-delete-match-${m.id}`}
->
-  <Trash2 className="w-4 h-4" />
-</Button>
+                      {m.status === "upcoming" && (
+                        <Badge className="bg-primary/20 text-primary border-primary/30">
+                          Em Breve
+                        </Badge>
+                      )}
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(m)}
+                        data-testid={`button-edit-match-${m.id}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        onClick={() => handleDeleteMatch(m.id)}
+                        data-testid={`button-delete-match-${m.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -648,8 +963,7 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-          )
-        )}
+          ))}
       </div>
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -665,7 +979,9 @@ export default function AdminPage() {
                 <Input
                   placeholder="Brasil"
                   value={newMatch.homeTeam}
-                  onChange={(e) => setNewMatch({ ...newMatch, homeTeam: e.target.value })}
+                  onChange={(e) =>
+                    setNewMatch({ ...newMatch, homeTeam: e.target.value })
+                  }
                   data-testid="input-home-team"
                 />
               </div>
@@ -675,7 +991,9 @@ export default function AdminPage() {
                 <Input
                   placeholder="Argentina"
                   value={newMatch.awayTeam}
-                  onChange={(e) => setNewMatch({ ...newMatch, awayTeam: e.target.value })}
+                  onChange={(e) =>
+                    setNewMatch({ ...newMatch, awayTeam: e.target.value })
+                  }
                   data-testid="input-away-team"
                 />
               </div>
@@ -687,7 +1005,9 @@ export default function AdminPage() {
                 <Input
                   placeholder="https://..."
                   value={newMatch.homeLogo}
-                  onChange={(e) => setNewMatch({ ...newMatch, homeLogo: e.target.value })}
+                  onChange={(e) =>
+                    setNewMatch({ ...newMatch, homeLogo: e.target.value })
+                  }
                 />
               </div>
 
@@ -696,7 +1016,9 @@ export default function AdminPage() {
                 <Input
                   placeholder="https://..."
                   value={newMatch.awayLogo}
-                  onChange={(e) => setNewMatch({ ...newMatch, awayLogo: e.target.value })}
+                  onChange={(e) =>
+                    setNewMatch({ ...newMatch, awayLogo: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -706,7 +1028,9 @@ export default function AdminPage() {
               <Input
                 type="datetime-local"
                 value={newMatch.matchDate}
-                onChange={(e) => setNewMatch({ ...newMatch, matchDate: e.target.value })}
+                onChange={(e) =>
+                  setNewMatch({ ...newMatch, matchDate: e.target.value })
+                }
                 data-testid="input-match-date"
               />
             </div>
@@ -717,14 +1041,21 @@ export default function AdminPage() {
               Cancelar
             </Button>
 
-            <Button onClick={handleCreate} disabled={createMutation.isPending} data-testid="button-confirm-create">
+            <Button
+              onClick={handleCreate}
+              disabled={createMutation.isPending}
+              data-testid="button-confirm-create"
+            >
               {createMutation.isPending ? "Criando..." : "Criar Jogo"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editState} onOpenChange={(open) => !open && setEditState(null)}>
+      <Dialog
+        open={!!editState}
+        onOpenChange={(open) => !open && setEditState(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar Jogo</DialogTitle>
@@ -737,7 +1068,12 @@ export default function AdminPage() {
                   <Label>Time da Casa</Label>
                   <Input
                     value={editState.homeTeam}
-                    onChange={(e) => setEditState({ ...editState, homeTeam: e.target.value })}
+                    onChange={(e) =>
+                      setEditState({
+                        ...editState,
+                        homeTeam: e.target.value,
+                      })
+                    }
                   />
                 </div>
 
@@ -745,7 +1081,12 @@ export default function AdminPage() {
                   <Label>Time Visitante</Label>
                   <Input
                     value={editState.awayTeam}
-                    onChange={(e) => setEditState({ ...editState, awayTeam: e.target.value })}
+                    onChange={(e) =>
+                      setEditState({
+                        ...editState,
+                        awayTeam: e.target.value,
+                      })
+                    }
                   />
                 </div>
               </div>
@@ -755,7 +1096,12 @@ export default function AdminPage() {
                 <Input
                   type="datetime-local"
                   value={editState.matchDate}
-                  onChange={(e) => setEditState({ ...editState, matchDate: e.target.value })}
+                  onChange={(e) =>
+                    setEditState({
+                      ...editState,
+                      matchDate: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -763,7 +1109,12 @@ export default function AdminPage() {
                 <Label>Status</Label>
                 <Select
                   value={editState.status}
-                  onValueChange={(v) => setEditState({ ...editState, status: v as MatchStatus })}
+                  onValueChange={(v) =>
+                    setEditState({
+                      ...editState,
+                      status: v as MatchStatus,
+                    })
+                  }
                 >
                   <SelectTrigger data-testid="select-status">
                     <SelectValue />
@@ -784,7 +1135,12 @@ export default function AdminPage() {
                     type="number"
                     min="0"
                     value={editState.homeScore}
-                    onChange={(e) => setEditState({ ...editState, homeScore: e.target.value })}
+                    onChange={(e) =>
+                      setEditState({
+                        ...editState,
+                        homeScore: e.target.value,
+                      })
+                    }
                     data-testid="input-home-score"
                   />
                 </div>
@@ -795,7 +1151,12 @@ export default function AdminPage() {
                     type="number"
                     min="0"
                     value={editState.awayScore}
-                    onChange={(e) => setEditState({ ...editState, awayScore: e.target.value })}
+                    onChange={(e) =>
+                      setEditState({
+                        ...editState,
+                        awayScore: e.target.value,
+                      })
+                    }
                     data-testid="input-away-score"
                   />
                 </div>
@@ -806,10 +1167,17 @@ export default function AdminPage() {
                 <Input
                   placeholder="https://youtube.com/watch?v=..."
                   value={editState.youtubeUrl}
-                  onChange={(e) => setEditState({ ...editState, youtubeUrl: e.target.value })}
+                  onChange={(e) =>
+                    setEditState({
+                      ...editState,
+                      youtubeUrl: e.target.value,
+                    })
+                  }
                 />
+
                 <p className="text-xs text-muted-foreground">
-                  Cole o link do YouTube para exibir a transmissão na aba Ao Vivo
+                  Cole o link do YouTube para exibir a transmissão na aba Ao
+                  Vivo
                 </p>
               </div>
             </div>
@@ -820,7 +1188,11 @@ export default function AdminPage() {
               Cancelar
             </Button>
 
-            <Button onClick={handleUpdate} disabled={updateMutation.isPending} data-testid="button-confirm-update">
+            <Button
+              onClick={handleUpdate}
+              disabled={updateMutation.isPending}
+              data-testid="button-confirm-update"
+            >
               {updateMutation.isPending ? "Salvando..." : "Salvar"}
             </Button>
           </DialogFooter>

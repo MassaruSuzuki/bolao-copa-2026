@@ -68,6 +68,7 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
 
   for (const fdMatch of fdMatches) {
     const mapped = mapFdMatch(fdMatch);
+
     const existing = await db
       .select({ id: matchesTable.id })
       .from(matchesTable)
@@ -77,53 +78,81 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
       await db
         .update(matchesTable)
         .set({
-          status: mapped.status,
+          status: "live",
           homeScore: mapped.homeScore,
           awayScore: mapped.awayScore,
         })
         .where(eq(matchesTable.externalId, fdMatch.id));
+
       updated++;
     }
   }
 
-  // Also mark finished matches that were live
-  await db
-    .select({ id: matchesTable.id, externalId: matchesTable.externalId })
+  const liveInDb = await db
+    .select({
+      id: matchesTable.id,
+      externalId: matchesTable.externalId,
+      matchDate: matchesTable.matchDate,
+    })
     .from(matchesTable)
-    .where(eq(matchesTable.status, "live"))
-    .then(async (liveInDb) => {
-      const liveExternalIds = new Set(fdMatches.map((m) => m.id));
-      for (const m of liveInDb) {
-        if (m.externalId && !liveExternalIds.has(m.externalId)) {
-          // Was live but no longer in live feed — fetch individual match to get final status
-          try {
-            const res = await fetch(
-              `https://api.football-data.org/v4/matches/${m.externalId}`,
-              { headers: { "X-Auth-Token": process.env["FOOTBALL_DATA_API_KEY"] ?? "" } }
-            );
-            if (res.ok) {
-              const data = (await res.json()) as { status: string; score: { fullTime: { home: number | null; away: number | null } } };
-              const newStatus =
-                data.status === "FINISHED" || data.status === "AWARDED"
-                  ? "finished"
-                  : data.status === "IN_PLAY" || data.status === "PAUSED"
-                  ? "live"
-                  : "upcoming";
-              await db
-                .update(matchesTable)
-                .set({
-                  status: newStatus,
-                  homeScore: data.score.fullTime.home ?? null,
-                  awayScore: data.score.fullTime.away ?? null,
-                })
-                .where(eq(matchesTable.id, m.id));
-            }
-          } catch {
-            // best-effort
-          }
+    .where(eq(matchesTable.status, "live"));
+
+  const liveExternalIds = new Set(fdMatches.map((m) => m.id));
+
+  for (const m of liveInDb) {
+    if (!m.externalId) continue;
+
+    if (liveExternalIds.has(m.externalId)) continue;
+
+    try {
+      const res = await fetch(
+        `https://api.football-data.org/v4/matches/${m.externalId}`,
+        {
+          headers: {
+            "X-Auth-Token": process.env["FOOTBALL_DATA_API_KEY"] ?? "",
+          },
         }
+      );
+
+      if (!res.ok) continue;
+
+      const data = (await res.json()) as {
+        status: string;
+        score: {
+          fullTime: {
+            home: number | null;
+            away: number | null;
+          };
+        };
+      };
+
+      let newStatus: "upcoming" | "live" | "finished" = "live";
+
+      if (data.status === "FINISHED" || data.status === "AWARDED") {
+        newStatus = "finished";
       }
-    });
+
+      if (
+        data.status === "IN_PLAY" ||
+        data.status === "PAUSED" ||
+        data.status === "TIMED" ||
+        data.status === "SCHEDULED"
+      ) {
+        newStatus = "live";
+      }
+
+      await db
+        .update(matchesTable)
+        .set({
+          status: newStatus,
+          homeScore: data.score.fullTime.home ?? null,
+          awayScore: data.score.fullTime.away ?? null,
+        })
+        .where(eq(matchesTable.id, m.id));
+    } catch {
+      // Se a API falhar, mantém como live para não derrubar o jogo da tela.
+    }
+  }
 
   logger.info({ updated }, "Live scores synced");
   return { updated };
