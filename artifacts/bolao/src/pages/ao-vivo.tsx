@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   useGetLiveRanking,
@@ -8,17 +8,22 @@ import {
   useListMatches,
   getListMatchesQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+
 import { Layout } from "@/components/Layout";
 import { AnimatedRankingList } from "@/components/AnimatedRankingList";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Radio, Zap, Clock, Calendar, ChevronDown, ChevronUp, Youtube } from "lucide-react";
+import {
+  Radio,
+  Zap,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Youtube,
+  Trophy,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getYoutubeEmbedUrl } from "@/lib/youtube";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { motion, AnimatePresence } from "framer-motion";
 import { MatchChat } from "@/components/MatchChat";
 import type { RankingEntry } from "@workspace/api-client-react";
 
@@ -39,302 +44,394 @@ function toLiveShape(entries: RankingEntry[] | undefined) {
   }));
 }
 
-interface LiveMatchCardProps {
-  match: {
-    id: number;
-    homeTeam: string;
-    awayTeam: string;
-    homeLogo?: string | null;
-    awayLogo?: string | null;
-    homeScore?: number | null;
-    awayScore?: number | null;
-    youtubeUrl?: string | null;
-  };
-  rankingEntries: ReturnType<typeof toLiveShape>;
-  currentUserId?: number;
-  isFirst: boolean;
-}
+type LiveMatch = {
+  id: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeLogo?: string | null;
+  awayLogo?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  youtubeUrl?: string | null;
+};
 
-function LiveMatchCard({ match, rankingEntries, currentUserId, isFirst }: LiveMatchCardProps) {
-  const [expanded, setExpanded] = useState(isFirst);
-  const embedUrl = match.youtubeUrl ? getYoutubeEmbedUrl(match.youtubeUrl) : null;
+const StableYoutubePlayer = memo(
+  function StableYoutubePlayer({ youtubeUrl }: { youtubeUrl?: string | null }) {
+    const embedUrlRef = useRef<string | null>(null);
 
-  const handleToggle = () => {
-    setExpanded((prev) => !prev);
-  };
+    if (!embedUrlRef.current && youtubeUrl) {
+      embedUrlRef.current = getYoutubeEmbedUrl(youtubeUrl);
+    }
 
-  const hasScore = match.homeScore != null && match.awayScore != null;
+    const embedUrl = embedUrlRef.current;
 
-  return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{
-        background: "linear-gradient(135deg, rgba(201,162,39,0.10) 0%, rgba(201,162,39,0.04) 100%)",
-        border: "1px solid rgba(201,162,39,0.25)",
-      }}
-    >
-      {/* Score bar — always visible, click to expand */}
-      <button
-        onClick={handleToggle}
-        className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-white/5 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          {match.homeLogo && (
-            <img src={match.homeLogo} alt={match.homeTeam} className="w-9 h-9 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          )}
-          <span className="text-base font-bold text-foreground">{match.homeTeam}</span>
-        </div>
-
-        <div className="text-center px-4">
-          {hasScore ? (
-            <div className="flex items-center gap-2">
-              <span className="text-3xl font-black text-primary tabular-nums">{match.homeScore}</span>
-              <span className="text-xl font-bold text-muted-foreground">×</span>
-              <span className="text-3xl font-black text-primary tabular-nums">{match.awayScore}</span>
-            </div>
-          ) : (
-            <span className="text-xl font-bold text-muted-foreground">vs</span>
-          )}
-          <div className="flex items-center justify-center gap-1 mt-0.5">
-            <Zap className="w-3 h-3 text-red-400 animate-pulse" />
-            <span className="text-xs font-semibold text-red-400">Em andamento</span>
+    if (!embedUrl) {
+      return (
+        <div className="w-full">
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Youtube className="h-3.5 w-3.5 text-red-500" />
+            <span>Transmissão ao vivo</span>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-base font-bold text-foreground">{match.awayTeam}</span>
-          {match.awayLogo && (
-            <img src={match.awayLogo} alt={match.awayTeam} className="w-9 h-9 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          )}
-          <div className="ml-2 text-muted-foreground/60">
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </div>
-        </div>
-      </button>
-
-      {/* Expanded content */}
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            style={{ overflow: "hidden" }}
-          >
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-  <div className="grid xl:grid-cols-[minmax(0,720px)_360px] gap-4 items-stretch justify-center">
-    {/* Video */}
-    <div className="w-full">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-        <Youtube className="w-3.5 h-3.5 text-red-500" />
-        <span>Transmissão ao vivo</span>
-      </div>
-
-      <div
-        className="rounded-xl overflow-hidden bg-black border border-white/10"
-        style={{
-          width: "100%",
-          aspectRatio: "16/9",
-        }}
-      >
-        {embedUrl ? (
-          <iframe
-            src={embedUrl}
-            style={{
-              width: "100%",
-              height: "100%",
-              border: "none",
-              display: "block",
-            }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">
+          <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-white/10 bg-black text-sm text-muted-foreground">
             Transmissão indisponível
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      );
+    }
 
-    {/* Chat */}
-    <div className="w-full">
-      <div className="h-full [&>div]:h-full">
-        <MatchChat matchId={match.id} isLive={true} />
-      </div>
-    </div>
-  </div>
-</div>
+    return (
+      <div className="w-full">
+        <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Youtube className="h-3.5 w-3.5 text-red-500" />
+          <span>Transmissão ao vivo</span>
+        </div>
 
-              {/* Legend */}
-              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1.5">
-                  <div className="flex gap-0.5">
-                    {[0,1,2,3,4].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-yellow-400" />)}
-                  </div>
-                  <span>Placar exato (+3pts)</span>
+        <iframe
+          src={embedUrl}
+          title="Transmissão ao vivo"
+          className="aspect-video w-full rounded-xl border border-white/10 bg-black"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+    );
+  },
+  (prev, next) => prev.youtubeUrl === next.youtubeUrl
+);
+
+const LiveMediaSection = memo(
+  function LiveMediaSection({
+    matchId,
+    youtubeUrl,
+  }: {
+    matchId: number;
+    youtubeUrl?: string | null;
+  }) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="grid items-stretch justify-center gap-4 xl:grid-cols-[minmax(0,720px)_360px]">
+          <StableYoutubePlayer youtubeUrl={youtubeUrl} />
+
+          <div className="w-full">
+            <div className="h-full [&>div]:h-full">
+              <MatchChat matchId={matchId} isLive />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.matchId === next.matchId && prev.youtubeUrl === next.youtubeUrl
+);
+
+function ScoreLegend() {
+  return (
+    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+      <span>🟡🟡🟡🟡🟡 Placar exato (+3pts)</span>
+      <span>🟡🟡🟡🟡⚫ Vencedor ou empate (+1pt)</span>
+      <span>🔴⚫⚫⚫⚫ Errou</span>
+    </div>
+  );
+}
+
+const LiveMatchCard = memo(
+  function LiveMatchCard({
+    match,
+    rankingEntries,
+    currentUserId,
+    isFirst,
+  }: {
+    match: LiveMatch;
+    rankingEntries: ReturnType<typeof toLiveShape>;
+    currentUserId?: number;
+    isFirst: boolean;
+  }) {
+    const [expanded, setExpanded] = useState(isFirst);
+    const [rankingExpanded, setRankingExpanded] = useState(true);
+
+    const hasScore = match.homeScore != null && match.awayScore != null;
+
+    return (
+      <div
+        className="overflow-hidden rounded-2xl"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(201,162,39,0.10) 0%, rgba(201,162,39,0.04) 100%)",
+          border: "1px solid rgba(201,162,39,0.25)",
+        }}
+      >
+        <button
+          onClick={() => setExpanded((prev) => !prev)}
+          className="flex w-full cursor-pointer items-center justify-between px-5 py-4 transition-colors hover:bg-white/5"
+        >
+          <div className="flex items-center gap-3">
+            {match.homeLogo && (
+              <img
+                src={match.homeLogo}
+                alt={match.homeTeam}
+                className="h-9 w-9 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+
+            <span className="text-base font-bold text-foreground">
+              {match.homeTeam}
+            </span>
+          </div>
+
+          <div className="px-4 text-center">
+            {hasScore ? (
+              <div className="flex items-center gap-2">
+                <span className="tabular-nums text-3xl font-black text-primary">
+                  {match.homeScore}
+                </span>
+                <span className="text-xl font-bold text-muted-foreground">
+                  ×
+                </span>
+                <span className="tabular-nums text-3xl font-black text-primary">
+                  {match.awayScore}
+                </span>
+              </div>
+            ) : (
+              <span className="text-xl font-bold text-muted-foreground">
+                vs
+              </span>
+            )}
+
+            <div className="mt-0.5 flex items-center justify-center gap-1">
+              <Zap className="h-3 w-3 animate-pulse text-red-400" />
+              <span className="text-xs font-semibold text-red-400">
+                Em andamento
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-base font-bold text-foreground">
+              {match.awayTeam}
+            </span>
+
+            {match.awayLogo && (
+              <img
+                src={match.awayLogo}
+                alt={match.awayTeam}
+                className="h-9 w-9 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+
+            <div className="ml-2 text-muted-foreground/60">
+              {expanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </div>
+          </div>
+        </button>
+
+        <div className={cn("space-y-4 p-4", !expanded && "hidden")}>
+          <LiveMediaSection matchId={match.id} youtubeUrl={match.youtubeUrl} />
+
+          <div className="overflow-hidden rounded-xl border border-primary/20 bg-card">
+            <button
+              type="button"
+              onClick={() => setRankingExpanded((prev) => !prev)}
+              className="flex w-full items-center justify-between border-b border-border px-4 py-3 transition-colors hover:bg-white/[0.03]"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                  <Trophy className="h-4 w-4 text-primary" />
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="flex gap-0.5">
-                    {[0,1,2,3,4].map(i => <div key={i} className={cn("w-1.5 h-1.5 rounded-full", i < 4 ? "bg-primary" : "bg-muted-foreground/20")} />)}
-                  </div>
-                  <span>Vencedor ou empate (+1pt)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="flex gap-0.5">
-                    {[0,1,2,3,4].map(i => <div key={i} className={cn("w-1.5 h-1.5 rounded-full", i < 1 ? "bg-red-500/60" : "bg-muted-foreground/20")} />)}
-                  </div>
-                  <span>Errou</span>
+
+                <div className="text-left">
+                  <p className="text-sm font-bold text-foreground">
+                    Ranking da Partida
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Participantes e pontuação ao vivo
+                  </p>
                 </div>
               </div>
 
-              {/* Ranking */}
-<div className="space-y-4">
-  {/* Ranking ao vivo */}
-  <div className="bg-card border border-primary/20 rounded-xl overflow-hidden">
-    <AnimatedRankingList
-      entries={rankingEntries}
-      currentUserId={currentUserId}
-      isLive={true}
-      liveScore={
-        hasScore
-          ? {
-              home: match.homeScore as number,
-              away: match.awayScore as number,
-              homeTeam: match.homeTeam,
-              awayTeam: match.awayTeam,
-            }
-          : undefined
-      }
-    />
-  </div>
+              {rankingExpanded ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
 
+            <div className={cn("space-y-3 p-3", !rankingExpanded && "hidden")}>
+              <ScoreLegend />
 
-
+              <div className="overflow-hidden rounded-lg border border-white/5">
+                <AnimatedRankingList
+                  entries={rankingEntries}
+                  currentUserId={currentUserId}
+                  isLive
+                  liveScore={
+                    hasScore
+                      ? {
+                          home: match.homeScore as number,
+                          away: match.awayScore as number,
+                          homeTeam: match.homeTeam,
+                          awayTeam: match.awayTeam,
+                        }
+                      : undefined
+                  }
+                />
+              </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+          </div>
+        </div>
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.match.id === next.match.id &&
+    prev.match.youtubeUrl === next.match.youtubeUrl &&
+    prev.match.homeScore === next.match.homeScore &&
+    prev.match.awayScore === next.match.awayScore &&
+    prev.rankingEntries === next.rankingEntries &&
+    prev.currentUserId === next.currentUserId &&
+    prev.isFirst === next.isFirst
+);
 
 export default function AoVivoPage() {
   const { user } = useAuth();
-  const qc = useQueryClient();
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: liveMatches, isLoading: loadingMatches } = useListMatches(
     { status: "live" },
-    { query: { queryKey: getListMatchesQueryKey({ status: "live" }), refetchInterval: 10_000 } }
-  );
-  const { data: upcomingMatches } = useListMatches(
-    { status: "upcoming" },
-    { query: { queryKey: getListMatchesQueryKey({ status: "upcoming" }) } }
+    {
+      query: {
+        queryKey: getListMatchesQueryKey({ status: "live" }),
+        staleTime: Infinity,
+        refetchInterval: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+      },
+    }
   );
 
   const hasLiveMatch = (liveMatches?.length ?? 0) > 0;
 
   const { data: baseRanking } = useGetRanking({
-    query: { queryKey: getGetRankingQueryKey(), enabled: !hasLiveMatch },
-  });
-
-  const { data: liveRanking, isLoading: loadingLive } = useGetLiveRanking({
     query: {
-      queryKey: getGetLiveRankingQueryKey(),
-      enabled: hasLiveMatch,
-      refetchInterval: 10_000,
+      queryKey: getGetRankingQueryKey(),
+      enabled: !hasLiveMatch,
+      staleTime: Infinity,
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
     },
   });
 
-  useEffect(() => {
-  if (!hasLiveMatch) return;
+  const { data: liveRanking } = useGetLiveRanking({
+    query: {
+      queryKey: getGetLiveRankingQueryKey(),
+      enabled: hasLiveMatch,
+      staleTime: Infinity,
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+    },
+  });
 
-  const interval = setInterval(() => {
-    qc.invalidateQueries({ queryKey: getGetLiveRankingQueryKey() });
-  }, 10_000);
+  const rankingEntries = useMemo(() => {
+    if (hasLiveMatch) {
+      return (liveRanking ?? []) as ReturnType<typeof toLiveShape>;
+    }
 
-  return () => clearInterval(interval);
-}, [hasLiveMatch, qc]);
+    return toLiveShape(baseRanking);
+  }, [hasLiveMatch, liveRanking, baseRanking]);
 
-  const rankingEntries = (hasLiveMatch ? (liveRanking ?? []) : toLiveShape(baseRanking)) as ReturnType<typeof toLiveShape>;
-  const isLoading = loadingMatches || (hasLiveMatch ? loadingLive : false);
+  const isInitialLoading = loadingMatches && !liveMatches;
 
   return (
     <Layout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
+      <div className="space-y-6 p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Radio className={cn("w-6 h-6", hasLiveMatch ? "text-red-400 animate-pulse" : "text-muted-foreground")} />
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+              <Radio
+                className={cn(
+                  "h-6 w-6",
+                  hasLiveMatch
+                    ? "animate-pulse text-red-400"
+                    : "text-muted-foreground"
+                )}
+              />
               Ao Vivo
             </h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
+
+            <p className="mt-0.5 text-sm text-muted-foreground">
               {hasLiveMatch
-                ? "Jogo em andamento — ranking atualizado automaticamente"
+                ? "Jogo em andamento — ranking dentro de cada partida"
                 : "Nenhum jogo em andamento no momento"}
             </p>
           </div>
+
           {hasLiveMatch && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-red-500/30 bg-red-500/10">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-xs font-semibold text-red-400">AO VIVO</span>
+            <div className="flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+              <span className="text-xs font-semibold text-red-400">
+                AO VIVO
+              </span>
             </div>
           )}
         </div>
 
-        {/* Loading */}
-        {isLoading && (
+        {isInitialLoading && (
           <div className="space-y-3">
             <Skeleton className="h-20 rounded-2xl" />
             <Skeleton className="h-64 rounded-xl" />
           </div>
         )}
 
-        {/* Live match cards — one per match, collapsible */}
-        {!isLoading && hasLiveMatch && liveMatches?.map((match, idx) => (
-          <LiveMatchCard
-            key={match.id}
-            match={match}
-            rankingEntries={rankingEntries}
-            currentUserId={user?.id}
-            isFirst={idx === 0}
-          />
-        ))}
+        {hasLiveMatch &&
+          liveMatches?.map((match, idx) => (
+            <LiveMatchCard
+              key={match.id}
+              match={match}
+              rankingEntries={rankingEntries}
+              currentUserId={user?.id}
+              isFirst={idx === 0}
+            />
+          ))}
 
-        {/* No live match state */}
-        {!hasLiveMatch && !isLoading && (
+        {!hasLiveMatch && !isInitialLoading && (
           <div
             className="rounded-2xl p-6 text-center"
             style={{
-              background: "linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)",
+              background:
+                "linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)",
               border: "1px solid rgba(255,255,255,0.06)",
             }}
           >
-            <Clock className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">Nenhum jogo ao vivo agora</p>
-            <p className="text-sm text-muted-foreground/60 mt-1">A classificação abaixo é a atual com base nos jogos encerrados</p>
-            {upcomingMatches && upcomingMatches.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Próximos jogos</p>
-                {upcomingMatches.slice(0, 3).map((m) => (
-                  <div key={m.id} className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{m.homeTeam} vs {m.awayTeam}</span>
-                    <span className="text-muted-foreground/50">·</span>
-                    <span>{format(new Date(m.matchDate), "dd MMM, HH:mm", { locale: ptBR })}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <Clock className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+
+            <p className="font-medium text-muted-foreground">
+              Nenhum jogo ao vivo agora
+            </p>
+
+            <p className="mt-1 text-sm text-muted-foreground/60">
+              A classificação abaixo é a atual com base nos jogos encerrados
+            </p>
           </div>
         )}
 
-        {/* Static ranking when no live match */}
-        {!hasLiveMatch && !isLoading && rankingEntries.length > 0 && (
-          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
+        {!hasLiveMatch && !isInitialLoading && rankingEntries.length > 0 && (
+          <div className="overflow-hidden rounded-xl border border-card-border bg-card">
             <AnimatedRankingList
               entries={rankingEntries}
               currentUserId={user?.id}

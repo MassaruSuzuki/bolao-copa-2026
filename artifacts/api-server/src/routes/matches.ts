@@ -6,10 +6,15 @@ import {
   usersTable,
   matchChatMessagesTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
-import { CreateMatchBody, UpdateMatchBody, UpdateMatchParams, GetMatchParams, ListMatchesQueryParams } from "@workspace/api-zod";
+import { eq, and } from "drizzle-orm";
+import {
+  CreateMatchBody,
+  UpdateMatchBody,
+  UpdateMatchParams,
+  GetMatchParams,
+  ListMatchesQueryParams,
+} from "@workspace/api-zod";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
-
 
 const router: IRouter = Router();
 
@@ -35,29 +40,46 @@ router.get("/matches", async (req, res): Promise<void> => {
 
 router.post("/matches", requireAdmin, async (req, res): Promise<void> => {
   const parsed = CreateMatchBody.safeParse(req.body);
+
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
   const { homeTeam, awayTeam, homeLogo, awayLogo, matchDate } = parsed.data;
+
   const [match] = await db
     .insert(matchesTable)
-    .values({ homeTeam, awayTeam, homeLogo, awayLogo, matchDate: new Date(matchDate) })
+    .values({
+      homeTeam,
+      awayTeam,
+      homeLogo,
+      awayLogo,
+      matchDate: new Date(matchDate),
+    })
     .returning();
 
-  res.status(201).json({ ...match, matchDate: match.matchDate.toISOString(), createdAt: match.createdAt.toISOString() });
+  res.status(201).json({
+    ...match,
+    matchDate: match.matchDate.toISOString(),
+    createdAt: match.createdAt.toISOString(),
+  });
 });
 
 router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = GetMatchParams.safeParse({ id: parseInt(raw, 10) });
+
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, params.data.id));
+  const [match] = await db
+    .select()
+    .from(matchesTable)
+    .where(eq(matchesTable.id, params.data.id));
+
   if (!match) {
     res.status(404).json({ error: "Jogo não encontrado" });
     return;
@@ -78,7 +100,13 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
       userCreatedAt: usersTable.createdAt,
     })
     .from(predictionsTable)
-    .innerJoin(usersTable, and(eq(predictionsTable.userId, usersTable.id), eq(usersTable.status, "approved")))
+    .innerJoin(
+      usersTable,
+      and(
+        eq(predictionsTable.userId, usersTable.id),
+        eq(usersTable.status, "approved")
+      )
+    )
     .where(eq(predictionsTable.matchId, params.data.id));
 
   res.json({
@@ -107,18 +135,21 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
 router.patch("/matches/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateMatchParams.safeParse({ id: parseInt(raw, 10) });
+
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
   const parsed = UpdateMatchBody.safeParse(req.body);
+
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
   const updateData: Record<string, unknown> = { ...parsed.data };
+
   if (parsed.data.matchDate) {
     updateData.matchDate = new Date(parsed.data.matchDate);
   }
@@ -134,13 +165,73 @@ router.patch("/matches/:id", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
-  res.json({ ...match, matchDate: match.matchDate.toISOString(), createdAt: match.createdAt.toISOString() });
+  res.json({
+    ...match,
+    matchDate: match.matchDate.toISOString(),
+    createdAt: match.createdAt.toISOString(),
+  });
 });
+
+/**
+ * DELETE usado pelo painel admin.
+ *
+ * Regra:
+ * - Se a partida tiver palpites, NÃO apaga.
+ * - Se não tiver palpites, apaga chat e depois a partida.
+ *
+ * Isso evita perder histórico de palpites dos jogadores.
+ */
+router.delete(
+  "/admin/matches/:id",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const matchId = parseInt(raw, 10);
+
+    if (Number.isNaN(matchId)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const [match] = await db
+      .select()
+      .from(matchesTable)
+      .where(eq(matchesTable.id, matchId));
+
+    if (!match) {
+      res.status(404).json({ error: "Jogo não encontrado" });
+      return;
+    }
+
+    const existingPredictions = await db
+      .select({ id: predictionsTable.id })
+      .from(predictionsTable)
+      .where(eq(predictionsTable.matchId, matchId));
+
+    if (existingPredictions.length > 0) {
+      res.status(409).json({
+        error:
+          "Não é possível excluir esta partida porque ela possui palpites. Para preservar o histórico dos jogadores, a exclusão foi bloqueada.",
+      });
+      return;
+    }
+
+    await db
+      .delete(matchChatMessagesTable)
+      .where(eq(matchChatMessagesTable.matchId, matchId));
+
+    await db.delete(matchesTable).where(eq(matchesTable.id, matchId));
+
+    res.json({ success: true });
+  }
+);
 
 router.get("/matches/:id/predictions", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  if (isNaN(id)) {
+
+  if (Number.isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
@@ -160,7 +251,13 @@ router.get("/matches/:id/predictions", requireAuth, async (req, res): Promise<vo
       userCreatedAt: usersTable.createdAt,
     })
     .from(predictionsTable)
-    .innerJoin(usersTable, and(eq(predictionsTable.userId, usersTable.id), eq(usersTable.status, "approved")))
+    .innerJoin(
+      usersTable,
+      and(
+        eq(predictionsTable.userId, usersTable.id),
+        eq(usersTable.status, "approved")
+      )
+    )
     .where(eq(predictionsTable.matchId, id));
 
   res.json(
@@ -181,22 +278,6 @@ router.get("/matches/:id/predictions", requireAuth, async (req, res): Promise<vo
       },
     }))
   );
-});
-
-router.delete("/matches/:id/chat", requireAuth, requireAdmin, async (req, res): Promise<void> => {
-  const matchId = Number(req.params.id);
-
-  if (Number.isNaN(matchId)) {
-    res.status(400).json({ error: "ID inválido" });
-    return;
-  }
-
-  await db
-    .delete(matchChatMessagesTable)
-    .where(eq(matchChatMessagesTable.matchId, matchId));
-
-  res.json({ success: true });
-  return;
 });
 
 router.get("/matches/:id/chat", requireAuth, async (req, res): Promise<void> => {
@@ -266,11 +347,11 @@ router.post("/matches/:id/chat", requireAuth, async (req, res): Promise<void> =>
   }
 
   const [match] = await db
-  .select({
-    id: matchesTable.id,
-    status: matchesTable.status,
-    chatLocked: matchesTable.chatLocked,
-  })
+    .select({
+      id: matchesTable.id,
+      status: matchesTable.status,
+      chatLocked: matchesTable.chatLocked,
+    })
     .from(matchesTable)
     .where(eq(matchesTable.id, matchId));
 
@@ -280,14 +361,18 @@ router.post("/matches/:id/chat", requireAuth, async (req, res): Promise<void> =>
   }
 
   if (match.status !== "live") {
-    res.status(403).json({ error: "O chat só fica aberto durante jogos ao vivo" });
+    res.status(403).json({
+      error: "O chat só fica aberto durante jogos ao vivo",
+    });
     return;
   }
 
   if (match.chatLocked) {
-  res.status(403).json({ error: "O chat foi bloqueado pelo administrador" });
-  return;
-}
+    res.status(403).json({
+      error: "O chat foi bloqueado pelo administrador",
+    });
+    return;
+  }
 
   const [created] = await db
     .insert(matchChatMessagesTable)
@@ -307,47 +392,57 @@ router.post("/matches/:id/chat", requireAuth, async (req, res): Promise<void> =>
   });
 });
 
-router.patch("/matches/:id/chat/lock", requireAuth, requireAdmin, async (req, res): Promise<void> => {
-  const matchId = Number(req.params.id);
+router.patch(
+  "/matches/:id/chat/lock",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const matchId = Number(req.params.id);
 
-  if (Number.isNaN(matchId)) {
-    res.status(400).json({ error: "ID inválido" });
-    return;
+    if (Number.isNaN(matchId)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const body = req.body as { locked?: boolean };
+    const locked = body.locked === true;
+
+    const [updated] = await db
+      .update(matchesTable)
+      .set({ chatLocked: locked })
+      .where(eq(matchesTable.id, matchId))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Jogo não encontrado" });
+      return;
+    }
+
+    res.json({
+      matchId,
+      chatLocked: updated.chatLocked,
+    });
   }
+);
 
-  const body = req.body as { locked?: boolean };
-  const locked = body.locked === true;
+router.delete(
+  "/matches/:id/chat",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const matchId = Number(req.params.id);
 
-  const [updated] = await db
-    .update(matchesTable)
-    .set({ chatLocked: locked })
-    .where(eq(matchesTable.id, matchId))
-    .returning();
+    if (Number.isNaN(matchId)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
 
-  if (!updated) {
-    res.status(404).json({ error: "Jogo não encontrado" });
-    return;
+    await db
+      .delete(matchChatMessagesTable)
+      .where(eq(matchChatMessagesTable.matchId, matchId));
+
+    res.json({ success: true });
   }
-
-  res.json({
-    matchId,
-    chatLocked: updated.chatLocked,
-  });
-});
-
-router.delete("/matches/:id/chat", requireAuth, requireAdmin, async (req, res): Promise<void> => {
-  const matchId = Number(req.params.id);
-
-  if (Number.isNaN(matchId)) {
-    res.status(400).json({ error: "ID inválido" });
-    return;
-  }
-
-  await db
-    .delete(matchChatMessagesTable)
-    .where(eq(matchChatMessagesTable.matchId, matchId));
-
-  res.json({ success: true });
-});
+);
 
 export default router;

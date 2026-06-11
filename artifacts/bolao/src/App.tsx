@@ -63,7 +63,7 @@ function AppRoutes() {
       <Route path="/matches" component={() => <ProtectedRoute><MatchesPage /></ProtectedRoute>} />
       <Route path="/matches/:id" component={() => <ProtectedRoute><MatchDetailPage /></ProtectedRoute>} />
       <Route path="/predictions" component={() => <ProtectedRoute><PredictionsPage /></ProtectedRoute>} />
-      <Route path="/ranking" component={() => <ProtectedRoute><RankingPage /></ProtectedRoute>} />
+      
       <Route path="/ao-vivo" component={() => <ProtectedRoute><AoVivoPage /></ProtectedRoute>} />
       <Route path="/tabela" component={() => <ProtectedRoute><TabelaPage /></ProtectedRoute>} />
       <Route path="/admin" component={() => <ProtectedRoute><AdminPage /></ProtectedRoute>} />

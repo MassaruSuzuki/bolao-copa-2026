@@ -1,35 +1,101 @@
 import { useState } from "react";
-import { useListMatches, getListMatchesQueryKey } from "@workspace/api-client-react";
+import {
+  useListMatches,
+  getListMatchesQueryKey,
+} from "@workspace/api-client-react";
 import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, differenceInMinutes } from "date-fns";
+import {
+  format,
+  differenceInMinutes,
+  isSameDay,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MatchStatus = "upcoming" | "live" | "finished";
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "live")
+function StatusBadge({
+  status,
+  matchDate,
+}: {
+  status: string;
+  matchDate: string;
+}) {
+  const now = new Date();
+  const gameDate = new Date(matchDate);
+
+  const isToday =
+    gameDate.getDate() === now.getDate() &&
+    gameDate.getMonth() === now.getMonth() &&
+    gameDate.getFullYear() === now.getFullYear();
+
+  const gameStarted = gameDate <= now;
+
+  if (status === "live" || gameStarted) {
     return (
       <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse text-[10px] px-1.5 py-0">
         ● AO VIVO
       </Badge>
     );
-  if (status === "finished")
-    return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Encerrado</Badge>;
-  return <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">Em Breve</Badge>;
+  }
+
+  if (status === "finished") {
+    return (
+      <Badge
+        variant="secondary"
+        className="text-[10px] px-1.5 py-0"
+      >
+        Encerrado
+      </Badge>
+    );
+  }
+
+  if (isToday) {
+    return (
+      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
+        Hoje
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">
+      Em Breve
+    </Badge>
+  );
 }
 
-function DeadlineLabel({ matchDate, status }: { matchDate: string; status: string }) {
+function DeadlineLabel({
+  matchDate,
+  status,
+}: {
+  matchDate: string;
+  status: string;
+}) {
   if (status !== "upcoming") return null;
+
   const minsLeft = differenceInMinutes(new Date(matchDate), new Date());
-  if (minsLeft <= 60)
-    return <span className="text-[10px] text-red-400 font-semibold">Prazo encerrado</span>;
-  if (minsLeft <= 120)
-    return <span className="text-[10px] text-yellow-400 font-semibold">Palpite encerra em {minsLeft - 60}min</span>;
+
+  if (minsLeft <= 60) {
+    return (
+      <span className="text-[10px] text-red-400 font-semibold">
+        Prazo encerrado
+      </span>
+    );
+  }
+
+  if (minsLeft <= 120) {
+    return (
+      <span className="text-[10px] text-yellow-400 font-semibold">
+        Palpite encerra em {minsLeft - 60}min
+      </span>
+    );
+  }
+
   return null;
 }
 
@@ -38,7 +104,13 @@ export default function MatchesPage() {
 
   const { data: matches, isLoading } = useListMatches(
     filter !== "all" ? { status: filter } : undefined,
-    { query: { queryKey: getListMatchesQueryKey(filter !== "all" ? { status: filter } : undefined) } }
+    {
+      query: {
+        queryKey: getListMatchesQueryKey(
+          filter !== "all" ? { status: filter } : undefined
+        ),
+      },
+    }
   );
 
   const filters: { label: string; value: MatchStatus | "all" }[] = [
@@ -52,11 +124,15 @@ export default function MatchesPage() {
     <Layout>
       <div className="px-4 pt-4 pb-4 md:p-6 space-y-4 md:space-y-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Jogos</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Faça seus palpites antes do prazo</p>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">
+            Jogos
+          </h1>
+
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Faça seus palpites antes do prazo
+          </p>
         </div>
 
-        {/* Filters */}
         <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-none">
           {filters.map(({ label, value }) => (
             <button
@@ -77,71 +153,95 @@ export default function MatchesPage() {
 
         {isLoading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+            {[...Array(5)].map((_, i) => (
+              <Skeleton key={i} className="h-28 rounded-2xl" />
+            ))}
           </div>
         ) : (
           <div className="space-y-2.5">
             {matches?.map((m) => {
               const hasScore = m.status === "live" || m.status === "finished";
+
               return (
                 <Link key={m.id} href={`/matches/${m.id}`}>
                   <div
                     className="bg-card border border-card-border rounded-2xl p-4 hover:bg-muted/20 active:scale-[0.99] cursor-pointer transition-all"
                     data-testid={`match-card-${m.id}`}
                   >
-                    {/* Top row: status + date */}
                     <div className="flex items-center justify-between mb-3">
-                      <StatusBadge status={m.status} />
+                      <StatusBadge status={m.status} matchDate={m.matchDate} />
+
                       <span className="text-[11px] text-muted-foreground tabular-nums">
-                        {format(new Date(m.matchDate), "dd MMM • HH:mm", { locale: ptBR })}
+                        {format(new Date(m.matchDate), "dd MMM • HH:mm", {
+                          locale: ptBR,
+                        })}
                       </span>
                     </div>
 
-                    {/* Teams row */}
                     <div className="flex items-center justify-between gap-2">
-                      {/* Home team */}
                       <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
                         <img
                           src={m.homeLogo ?? ""}
                           alt={m.homeTeam}
                           className="w-10 h-10 md:w-12 md:h-12 object-contain"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
                         />
+
                         <span className="text-xs md:text-sm font-semibold text-foreground text-center leading-tight line-clamp-2">
                           {m.homeTeam}
                         </span>
                       </div>
 
-                      {/* Score / VS */}
                       <div className="flex-shrink-0 flex flex-col items-center justify-center px-2">
                         {hasScore ? (
                           <div
                             className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-                            style={{ background: "rgba(255,255,255,0.05)" }}
+                            style={{
+                              background: "rgba(255,255,255,0.05)",
+                            }}
                           >
-                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">{m.homeScore}</span>
-                            <span className="text-base text-muted-foreground/60 font-light">×</span>
-                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">{m.awayScore}</span>
+                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
+                              {m.homeScore}
+                            </span>
+
+                            <span className="text-base text-muted-foreground/60 font-light">
+                              ×
+                            </span>
+
+                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
+                              {m.awayScore}
+                            </span>
                           </div>
                         ) : (
                           <div
                             className="px-4 py-1.5 rounded-xl"
-                            style={{ background: "rgba(255,255,255,0.04)" }}
+                            style={{
+                              background: "rgba(255,255,255,0.04)",
+                            }}
                           >
-                            <span className="text-sm font-bold text-muted-foreground/60">VS</span>
+                            <span className="text-sm font-bold text-muted-foreground/60">
+                              VS
+                            </span>
                           </div>
                         )}
+
                         <DeadlineLabel matchDate={m.matchDate} status={m.status} />
                       </div>
 
-                      {/* Away team */}
                       <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
                         <img
                           src={m.awayLogo ?? ""}
                           alt={m.awayTeam}
                           className="w-10 h-10 md:w-12 md:h-12 object-contain"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
                         />
+
                         <span className="text-xs md:text-sm font-semibold text-foreground text-center leading-tight line-clamp-2">
                           {m.awayTeam}
                         </span>
@@ -151,6 +251,7 @@ export default function MatchesPage() {
                 </Link>
               );
             })}
+
             {!matches?.length && (
               <div className="bg-card border border-card-border rounded-2xl p-12 text-center">
                 <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />

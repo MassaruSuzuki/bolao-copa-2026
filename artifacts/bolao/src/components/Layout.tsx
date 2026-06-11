@@ -43,7 +43,7 @@ export { UserAvatar };
 const navItems = [
   { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/ranking", label: "Ranking", icon: Trophy },
+ 
   { href: "/matches", label: "Jogos", icon: Calendar },
   { href: "/predictions", label: "Meus Palpites", icon: Target },
   { href: "/tabela", label: "Tabela do Bolão", icon: TableProperties },
