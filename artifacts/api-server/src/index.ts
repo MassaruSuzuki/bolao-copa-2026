@@ -2,14 +2,12 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startLivePoller } from "./services/livePoller";
 import { seedDefaultAdmin } from "./lib/seedAdmin";
-import { syncMatchesOnStartup } from "./lib/syncMatchesOnStartup";
+// import { syncMatchesOnStartup } from "./lib/syncMatchesOnStartup";
 
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  throw new Error("PORT environment variable is required but was not provided.");
 }
 
 const port = Number(rawPort);
@@ -25,7 +23,11 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
   startLivePoller();
   seedDefaultAdmin();
-  syncMatchesOnStartup();
+
+  // Desativado para não sobrescrever jogos colocados manualmente como Ao Vivo.
+  // Quando quiser sincronizar jogos da Copa, use o botão "Sincronizar Copa 2026" no Admin.
+  // syncMatchesOnStartup();
 });
