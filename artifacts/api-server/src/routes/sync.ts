@@ -45,11 +45,7 @@ async function fetchMatchByExternalId(externalId: number) {
     const text = await response.text();
 
     logger.warn(
-      {
-        externalId,
-        status: response.status,
-        body: text,
-      },
+      { externalId, status: response.status, body: text },
       "Falha ao buscar partida individual"
     );
 
@@ -71,16 +67,65 @@ async function fetchMatchByExternalId(externalId: number) {
       | "AWARDED";
     score?: {
       winner?: string | null;
-      fullTime?: {
-        home: number | null;
-        away: number | null;
-      };
-      halfTime?: {
-        home: number | null;
-        away: number | null;
-      };
+      fullTime?: { home: number | null; away: number | null };
+      halfTime?: { home: number | null; away: number | null };
     };
   }>;
+}
+
+async function syncAllMatches(): Promise<{
+  created: number;
+  updated: number;
+  total: number;
+}> {
+  const fdMatches = await fetchAllWcMatches();
+
+  let created = 0;
+  let updated = 0;
+
+  for (const fdMatch of fdMatches) {
+    if (!fdMatch.homeTeam?.name || !fdMatch.awayTeam?.name) continue;
+
+    const mapped = mapFdMatch(fdMatch);
+
+    const [existing] = await db
+      .select({
+        id: matchesTable.id,
+        status: matchesTable.status,
+        homeScore: matchesTable.homeScore,
+        awayScore: matchesTable.awayScore,
+      })
+      .from(matchesTable)
+      .where(eq(matchesTable.externalId, fdMatch.id));
+
+    if (!existing) {
+      await db.insert(matchesTable).values(mapped);
+      created++;
+      continue;
+    }
+
+    await db
+      .update(matchesTable)
+      .set({
+        homeTeam: mapped.homeTeam,
+        awayTeam: mapped.awayTeam,
+        homeLogo: mapped.homeLogo,
+        awayLogo: mapped.awayLogo,
+        matchDate: mapped.matchDate,
+        status: mapped.status,
+        homeScore: safeScore(mapped.homeScore, existing.homeScore),
+        awayScore: safeScore(mapped.awayScore, existing.awayScore),
+      })
+      .where(eq(matchesTable.externalId, fdMatch.id));
+
+    updated++;
+  }
+
+  return {
+    created,
+    updated,
+    total: fdMatches.length,
+  };
 }
 
 router.post(
@@ -88,57 +133,16 @@ router.post(
   requireAdmin,
   async (_req, res): Promise<void> => {
     try {
-      const fdMatches = await fetchAllWcMatches();
-      let created = 0;
-      let updated = 0;
+      const result = await syncAllMatches();
 
-      for (const fdMatch of fdMatches) {
-        if (!fdMatch.homeTeam?.name || !fdMatch.awayTeam?.name) continue;
+      logger.info(result, "Sync geral concluído");
 
-        const mapped = mapFdMatch(fdMatch);
-
-        const [existing] = await db
-          .select({
-            id: matchesTable.id,
-            status: matchesTable.status,
-            homeScore: matchesTable.homeScore,
-            awayScore: matchesTable.awayScore,
-          })
-          .from(matchesTable)
-          .where(eq(matchesTable.externalId, fdMatch.id));
-
-        if (!existing) {
-          await db.insert(matchesTable).values(mapped);
-          created++;
-          continue;
-        }
-
-        const nextStatus =
-          existing.status === "live" && mapped.status !== "finished"
-            ? "live"
-            : mapped.status;
-
-        await db
-          .update(matchesTable)
-          .set({
-            homeTeam: mapped.homeTeam,
-            awayTeam: mapped.awayTeam,
-            homeLogo: mapped.homeLogo,
-            awayLogo: mapped.awayLogo,
-            matchDate: mapped.matchDate,
-            status: nextStatus,
-            homeScore: safeScore(mapped.homeScore, existing.homeScore),
-            awayScore: safeScore(mapped.awayScore, existing.awayScore),
-          })
-          .where(eq(matchesTable.externalId, fdMatch.id));
-
-        updated++;
-      }
-
-      logger.info({ created, updated }, "Sync completed");
-      res.json({ ok: true, created, updated, total: fdMatches.length });
+      res.json({
+        ok: true,
+        ...result,
+      });
     } catch (err) {
-      logger.error({ err }, "Sync failed");
+      logger.error({ err }, "Sync geral falhou");
       res.status(500).json({ error: String(err) });
     }
   }
@@ -150,7 +154,11 @@ router.post(
   async (_req, res): Promise<void> => {
     try {
       const result = await syncLiveScores();
-      res.json({ ok: true, ...result });
+
+      res.json({
+        ok: true,
+        ...result,
+      });
     } catch (err) {
       logger.error({ err }, "Live sync failed");
       res.status(500).json({ error: String(err) });
@@ -158,11 +166,25 @@ router.post(
   }
 );
 
-export async function syncLiveScores(): Promise<{ updated: number }> {
-  const fdMatches = await fetchLiveWcMatches();
+export async function syncLiveScores(): Promise<{
+  updated: number;
+  correctedFromAllSync: number;
+}> {
   let updated = 0;
 
-  for (const fdMatch of fdMatches) {
+  /**
+   * Primeiro faz o sync geral.
+   * Isso evita jogo ficar preso como "live" quando a API já mudou para "FINISHED".
+   */
+  const allSync = await syncAllMatches();
+  const correctedFromAllSync = allSync.updated;
+
+  /**
+   * Depois atualiza placar dos jogos que a API ainda considera ao vivo.
+   */
+  const fdLiveMatches = await fetchLiveWcMatches();
+
+  for (const fdMatch of fdLiveMatches) {
     const mapped = mapFdMatch(fdMatch);
 
     const [existing] = await db
@@ -180,7 +202,7 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
     await db
       .update(matchesTable)
       .set({
-        status: "live",
+        status: mapped.status,
         homeScore: safeScore(mapped.homeScore, existing.homeScore),
         awayScore: safeScore(mapped.awayScore, existing.awayScore),
       })
@@ -189,10 +211,16 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
     updated++;
   }
 
+  /**
+   * Por segurança, verifica qualquer jogo que ainda esteja "live" no banco.
+   * Se a API individual disser FINISHED, ele vira finished.
+   */
   const liveInDb = await db
     .select({
       id: matchesTable.id,
       externalId: matchesTable.externalId,
+      homeTeam: matchesTable.homeTeam,
+      awayTeam: matchesTable.awayTeam,
       homeScore: matchesTable.homeScore,
       awayScore: matchesTable.awayScore,
     })
@@ -218,10 +246,32 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
       .where(eq(matchesTable.id, match.id));
 
     updated++;
+
+    logger.info(
+      {
+        id: match.id,
+        externalId: match.externalId,
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+        apiStatus: individualMatch.status,
+        internalStatus,
+      },
+      "Jogo live conferido individualmente"
+    );
   }
 
-  logger.info({ updated }, "Live scores synced");
-  return { updated };
+  logger.info(
+    {
+      updated,
+      correctedFromAllSync,
+    },
+    "Live scores synced"
+  );
+
+  return {
+    updated,
+    correctedFromAllSync,
+  };
 }
 
 export default router;

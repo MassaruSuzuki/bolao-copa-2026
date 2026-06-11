@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, matchesTable, usersTable, predictionsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 function calcPoints(
@@ -19,11 +19,7 @@ function calcPoints(
   const realResult =
     realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
 
-  if (predResult === realResult) {
-    return 1;
-  }
-
-  return 0;
+  return predResult === realResult ? 1 : 0;
 }
 
 function serializeMatch(match: typeof matchesTable.$inferSelect) {
@@ -42,10 +38,7 @@ router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
       .select()
       .from(usersTable)
       .where(
-        and(
-          eq(usersTable.isAdmin, false),
-          eq(usersTable.status, "approved")
-        )
+        and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved"))
       );
 
     const allMatches = await db
@@ -60,9 +53,7 @@ router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
       .map(serializeMatch);
 
     const upcomingMatches = allMatches
-      .filter(
-        (match) => match.status === "upcoming" || match.status === "live"
-      )
+      .filter((match) => match.status === "upcoming")
       .slice(0, 5)
       .map(serializeMatch);
 
@@ -113,6 +104,7 @@ router.get("/dashboard", requireAuth, async (_req, res): Promise<void> => {
         return {
           userId: user.id,
           name: user.name,
+          avatarUrl: user.avatarUrl,
           totalPoints,
           exactScores,
           correctResults,

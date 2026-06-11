@@ -7,35 +7,15 @@ import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  format,
-  differenceInMinutes,
-  isSameDay,
-} from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MatchStatus = "upcoming" | "live" | "finished";
 
-function StatusBadge({
-  status,
-  matchDate,
-}: {
-  status: string;
-  matchDate: string;
-}) {
-  const now = new Date();
-  const gameDate = new Date(matchDate);
-
-  const isToday =
-    gameDate.getDate() === now.getDate() &&
-    gameDate.getMonth() === now.getMonth() &&
-    gameDate.getFullYear() === now.getFullYear();
-
-  const gameStarted = gameDate <= now;
-
-  if (status === "live" || gameStarted) {
+function StatusBadge({ status }: { status: string }) {
+  if (status === "live") {
     return (
       <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse text-[10px] px-1.5 py-0">
         ● AO VIVO
@@ -45,19 +25,8 @@ function StatusBadge({
 
   if (status === "finished") {
     return (
-      <Badge
-        variant="secondary"
-        className="text-[10px] px-1.5 py-0"
-      >
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
         Encerrado
-      </Badge>
-    );
-  }
-
-  if (isToday) {
-    return (
-      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
-        Hoje
       </Badge>
     );
   }
@@ -169,7 +138,7 @@ export default function MatchesPage() {
                     data-testid={`match-card-${m.id}`}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <StatusBadge status={m.status} matchDate={m.matchDate} />
+                      <StatusBadge status={m.status} />
 
                       <span className="text-[11px] text-muted-foreground tabular-nums">
                         {format(new Date(m.matchDate), "dd MMM • HH:mm", {
@@ -228,7 +197,10 @@ export default function MatchesPage() {
                           </div>
                         )}
 
-                        <DeadlineLabel matchDate={m.matchDate} status={m.status} />
+                        <DeadlineLabel
+                          matchDate={m.matchDate}
+                          status={m.status}
+                        />
                       </div>
 
                       <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
