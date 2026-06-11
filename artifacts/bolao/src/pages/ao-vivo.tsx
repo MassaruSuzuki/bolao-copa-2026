@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 
 import {
   useGetLiveRanking,
@@ -56,11 +56,7 @@ type LiveMatch = {
 };
 
 const StableYoutubePlayer = memo(
-  function StableYoutubePlayer({
-    youtubeUrl,
-  }: {
-    youtubeUrl?: string | null;
-  }) {
+  function StableYoutubePlayer({ youtubeUrl }: { youtubeUrl?: string | null }) {
     const embedUrlRef = useRef<string | null>(null);
 
     if (!embedUrlRef.current && youtubeUrl) {
@@ -84,7 +80,6 @@ const StableYoutubePlayer = memo(
               <p className="text-sm font-semibold text-white">
                 Transmissão indisponível
               </p>
-
               <p className="mt-1 text-xs text-muted-foreground">
                 Nenhum link de transmissão foi informado.
               </p>
@@ -114,12 +109,9 @@ const StableYoutubePlayer = memo(
 
         <div className="mt-3 flex justify-center">
           <button
+            type="button"
             onClick={() =>
-              window.open(
-                youtubeUrl,
-                "_blank",
-                "noopener,noreferrer"
-              )
+              window.open(youtubeUrl, "_blank", "noopener,noreferrer")
             }
             className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
           >
@@ -196,6 +188,7 @@ const LiveMatchCard = memo(
         }}
       >
         <button
+          type="button"
           onClick={() => setExpanded((prev) => !prev)}
           className="flex w-full cursor-pointer items-center justify-between px-5 py-4 transition-colors hover:bg-white/5"
         >
@@ -344,11 +337,13 @@ export default function AoVivoPage() {
     {
       query: {
         queryKey: getListMatchesQueryKey({ status: "live" }),
-        staleTime: Infinity,
-        refetchInterval: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        refetchOnMount: false,
+
+        // Atualiza o placar ao vivo sem desmontar o player
+        staleTime: 5_000,
+        refetchInterval: 10_000,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
+        refetchOnMount: true,
       },
     }
   );
@@ -359,11 +354,13 @@ export default function AoVivoPage() {
     query: {
       queryKey: getGetRankingQueryKey(),
       enabled: !hasLiveMatch,
-      staleTime: Infinity,
+
+      // Ranking normal não precisa atualizar toda hora
+      staleTime: 30_000,
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      refetchOnMount: true,
     },
   });
 
@@ -371,11 +368,13 @@ export default function AoVivoPage() {
     query: {
       queryKey: getGetLiveRankingQueryKey(),
       enabled: hasLiveMatch,
-      staleTime: Infinity,
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
+
+      // Atualiza ranking ao vivo junto com o placar
+      staleTime: 5_000,
+      refetchInterval: 10_000,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      refetchOnMount: true,
     },
   });
 
