@@ -16,12 +16,18 @@ function safeScore(
   oldScore: number | null
 ): number | null {
   if (newScore === null || newScore === undefined) return oldScore;
-
-  if (oldScore !== null && newScore < oldScore) {
-    return oldScore;
-  }
-
+  if (oldScore !== null && newScore < oldScore) return oldScore;
   return newScore;
+}
+
+function pickScore(score?: {
+  fullTime?: { home: number | null; away: number | null };
+  halfTime?: { home: number | null; away: number | null };
+}) {
+  return {
+    home: score?.fullTime?.home ?? score?.halfTime?.home ?? null,
+    away: score?.fullTime?.away ?? score?.halfTime?.away ?? null,
+  };
 }
 
 router.post(
@@ -165,22 +171,22 @@ export async function syncLiveScores(): Promise<{ updated: number }> {
             home: number | null;
             away: number | null;
           };
+          halfTime?: {
+            home: number | null;
+            away: number | null;
+          };
         };
       };
+
+      const currentScore = pickScore(data.score);
 
       if (data.status === "FINISHED" || data.status === "AWARDED") {
         await db
           .update(matchesTable)
           .set({
             status: "finished",
-            homeScore: safeScore(
-              data.score?.fullTime?.home,
-              match.homeScore
-            ),
-            awayScore: safeScore(
-              data.score?.fullTime?.away,
-              match.awayScore
-            ),
+            homeScore: safeScore(currentScore.home, match.homeScore),
+            awayScore: safeScore(currentScore.away, match.awayScore),
           })
           .where(eq(matchesTable.id, match.id));
 
