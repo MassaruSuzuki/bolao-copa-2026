@@ -71,16 +71,18 @@ function DeadlineLabel({
 export default function MatchesPage() {
   const [filter, setFilter] = useState<MatchStatus | "all">("all");
 
-  const { data: matches, isLoading } = useListMatches(
-    filter !== "all" ? { status: filter } : undefined,
-    {
-      query: {
-        queryKey: getListMatchesQueryKey(
-          filter !== "all" ? { status: filter } : undefined
-        ),
-      },
-    }
-  );
+  const apiFilter = filter === "all" ? undefined : { status: filter };
+
+  const { data: rawMatches, isLoading } = useListMatches(apiFilter, {
+    query: {
+      queryKey: getListMatchesQueryKey(apiFilter),
+    },
+  });
+
+  const matches =
+    filter === "all"
+      ? rawMatches?.filter((match) => match.status !== "finished")
+      : rawMatches;
 
   const filters: { label: string; value: MatchStatus | "all" }[] = [
     { label: "Todos", value: "all" },
