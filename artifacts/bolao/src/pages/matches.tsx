@@ -7,14 +7,22 @@ import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, differenceInMinutes } from "date-fns";
+import { format, differenceInMinutes, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MatchStatus = "upcoming" | "live" | "finished";
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  status,
+  matchDate,
+}: {
+  status: string;
+  matchDate: string;
+}) {
+  const matchIsToday = isToday(new Date(matchDate));
+
   if (status === "live") {
     return (
       <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse text-[10px] px-1.5 py-0">
@@ -27,6 +35,14 @@ function StatusBadge({ status }: { status: string }) {
     return (
       <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
         Encerrado
+      </Badge>
+    );
+  }
+
+  if (matchIsToday) {
+    return (
+      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
+        Hoje
       </Badge>
     );
   }
@@ -81,7 +97,7 @@ export default function MatchesPage() {
 
   const matches =
     filter === "all"
-      ? rawMatches?.filter((match) => match.status !== "finished")
+      ? rawMatches?.filter((match) => match.status === "upcoming")
       : rawMatches;
 
   const filters: { label: string; value: MatchStatus | "all" }[] = [
@@ -140,7 +156,7 @@ export default function MatchesPage() {
                     data-testid={`match-card-${m.id}`}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <StatusBadge status={m.status} />
+                      <StatusBadge status={m.status} matchDate={m.matchDate} />
 
                       <span className="text-[11px] text-muted-foreground tabular-nums">
                         {format(new Date(m.matchDate), "dd MMM • HH:mm", {
