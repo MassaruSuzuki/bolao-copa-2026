@@ -11,7 +11,7 @@ import DashboardPage from "@/pages/dashboard";
 import MatchesPage from "@/pages/matches";
 import MatchDetailPage from "@/pages/match-detail";
 import PredictionsPage from "@/pages/predictions";
-import RankingPage from "@/pages/ranking";
+
 import AoVivoPage from "@/pages/ao-vivo";
 import TabelaPage from "@/pages/tabela";
 import AdminPage from "@/pages/admin";

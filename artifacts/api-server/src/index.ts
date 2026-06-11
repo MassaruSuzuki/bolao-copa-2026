@@ -1,8 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-// import { startLivePoller } from "./services/livePoller";
 import { seedDefaultAdmin } from "./lib/seedAdmin";
-// import { syncMatchesOnStartup } from "./lib/syncMatchesOnStartup";
 
 const rawPort = process.env["PORT"];
 
@@ -24,13 +22,9 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
-  // Desativado temporariamente para não sobrescrever status manual dos jogos.
-  // Depois vamos corrigir o livePoller.ts e religar.
-  // startLivePoller();
-
   seedDefaultAdmin();
 
-  // Desativado para não sobrescrever jogos colocados manualmente como Ao Vivo.
-  // Quando quiser sincronizar jogos da Copa, use o botão "Sincronizar Copa 2026" no Admin.
-  // syncMatchesOnStartup();
+  logger.info(
+    "Sincronização automática e live poller desativados. Use o painel Admin para controlar os jogos manualmente."
+  );
 });
