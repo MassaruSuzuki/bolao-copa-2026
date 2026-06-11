@@ -5,50 +5,94 @@ import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.get("/admin/users", requireAuth, requireAdmin, async (_req, res): Promise<void> => {
-  const users = await db
-    .select({
-      id: usersTable.id,
-      name: usersTable.name,
-      email: usersTable.email,
-      status: usersTable.status,
-      createdAt: usersTable.createdAt,
-    })
-    .from(usersTable)
-    .where(ne(usersTable.isAdmin, true));
+router.get(
+  "/admin/users",
+  requireAuth,
+  requireAdmin,
+  async (_req, res): Promise<void> => {
+    const users = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        status: usersTable.status,
+        createdAt: usersTable.createdAt,
 
-  res.json(
-    users.map((u) => ({
-      ...u,
-      createdAt: u.createdAt.toISOString(),
-    }))
-  );
-});
+        // foto do participante
+        avatarUrl: usersTable.avatarUrl,
+      })
+      .from(usersTable)
+      .where(ne(usersTable.isAdmin, true));
 
-router.post("/admin/users/:id/approve", requireAuth, requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+    res.json(
+      users.map((u) => ({
+        ...u,
+        createdAt: u.createdAt.toISOString(),
+      }))
+    );
+  }
+);
 
-  const [user] = await db.update(usersTable)
-    .set({ status: "approved" })
-    .where(eq(usersTable.id, id))
-    .returning();
+router.post(
+  "/admin/users/:id/approve",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const id = parseInt(req.params.id as string, 10);
 
-  if (!user) { res.status(404).json({ error: "Usuário não encontrado" }); return; }
-  res.json({ ok: true, id: user.id, status: user.status });
-});
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
 
-router.post("/admin/users/:id/reject", requireAuth, requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
+    const [user] = await db
+      .update(usersTable)
+      .set({ status: "approved" })
+      .where(eq(usersTable.id, id))
+      .returning();
 
-  const [user] = await db.update(usersTable)
-    .set({ status: "rejected" })
-    .where(eq(usersTable.id, id))
-    .returning();
+    if (!user) {
+      res.status(404).json({ error: "Usuário não encontrado" });
+      return;
+    }
 
-  if (!user) { res.status(404).json({ error: "Usuário não encontrado" }); return; }
-  res.json({ ok: true, id: user.id, status: user.status });
-});
+    res.json({
+      ok: true,
+      id: user.id,
+      status: user.status,
+    });
+  }
+);
+
+router.post(
+  "/admin/users/:id/reject",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const id = parseInt(req.params.id as string, 10);
+
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const [user] = await db
+      .update(usersTable)
+      .set({ status: "rejected" })
+      .where(eq(usersTable.id, id))
+      .returning();
+
+    if (!user) {
+      res.status(404).json({ error: "Usuário não encontrado" });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      id: user.id,
+      status: user.status,
+    });
+  }
+);
 
 export default router;

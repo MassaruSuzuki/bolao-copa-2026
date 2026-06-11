@@ -43,6 +43,7 @@ import {
   XCircle,
   Clock,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
@@ -67,6 +68,10 @@ interface ParticipantUser {
   email: string;
   status: string;
   createdAt: string;
+  avatarUrl?: string | null;
+  profileImage?: string | null;
+  photoUrl?: string | null;
+  imageUrl?: string | null;
 }
 
 interface AdminPrediction {
@@ -85,6 +90,14 @@ interface AdminPrediction {
   awayGoals: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface PredictionGroup {
+  userId: number;
+  userName: string;
+  userEmail?: string;
+  userPhoto?: string | null;
+  predictions: AdminPrediction[];
 }
 
 function useAdminUsers() {
@@ -135,6 +148,44 @@ function useAdminPredictions() {
   });
 }
 
+function UserAvatar({
+  name,
+  photo,
+  size = "md",
+}: {
+  name: string;
+  photo?: string | null;
+  size?: "sm" | "md";
+}) {
+  const sizeClass = size === "sm" ? "w-9 h-9" : "w-10 h-10";
+
+  if (photo) {
+    return (
+      <img
+        src={photo}
+        alt={name}
+        className={`${sizeClass} rounded-full object-cover flex-shrink-0 border border-card-border`}
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${sizeClass} rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black`}
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(201,162,39,0.2) 0%, rgba(201,162,39,0.08) 100%)",
+        color: "hsl(43,74%,52%)",
+      }}
+    >
+      {name.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -164,6 +215,7 @@ export default function AdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncingLive, setSyncingLive] = useState(false);
   const [processingUser, setProcessingUser] = useState<number | null>(null);
+  const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
 
   const { data: participants, isLoading: loadingUsers } = useAdminUsers();
   const { data: predictions, isLoading: loadingPredictions } =
@@ -197,6 +249,39 @@ export default function AdminPage() {
     setLocation("/dashboard");
     return null;
   }
+
+  const toggleUserPredictions = (userId: number) => {
+    setExpandedUsers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const predictionGroups: PredictionGroup[] = (participants ?? [])
+    .filter((participant) => participant.status === "approved")
+    .map((participant) => {
+      const userPredictions = (predictions ?? [])
+        .filter((prediction) => prediction.userId === participant.id)
+        .sort(
+          (a, b) =>
+            new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
+        );
+
+      return {
+        userId: participant.id,
+        userName: participant.name,
+        userEmail: participant.email,
+        userPhoto:
+          participant.avatarUrl ??
+          participant.profileImage ??
+          participant.photoUrl ??
+          participant.imageUrl ??
+          null,
+        predictions: userPredictions,
+      };
+    })
+    .sort((a, b) => a.userName.localeCompare(b.userName));
 
   const handleSyncMatches = async () => {
     setSyncing(true);
@@ -511,6 +596,12 @@ export default function AdminPage() {
     return null;
   };
 
+  const predictionStatusLabel = (status: string) => {
+    if (status === "live") return "Ao Vivo";
+    if (status === "finished") return "Encerrado";
+    return "Em Breve";
+  };
+
   return (
     <Layout>
       <div className="p-4 md:p-6 space-y-5">
@@ -546,9 +637,10 @@ export default function AdminPage() {
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() =>
-                qc.invalidateQueries({ queryKey: ["admin-predictions"] })
-              }
+              onClick={() => {
+                qc.invalidateQueries({ queryKey: ["admin-users"] });
+                qc.invalidateQueries({ queryKey: ["admin-predictions"] });
+              }}
             >
               <RefreshCw className="w-4 h-4" />
               Atualizar
@@ -692,171 +784,234 @@ export default function AdminPage() {
 
                     return (order[a.status] ?? 3) - (order[b.status] ?? 3);
                   })
-                  .map((u) => (
-                    <div
-                      key={u.id}
-                      className="px-4 py-3 flex items-center gap-3"
-                      data-testid={`user-row-${u.id}`}
-                    >
+                  .map((u) => {
+                    const userPhoto =
+                      u.avatarUrl ?? u.profileImage ?? u.photoUrl ?? u.imageUrl;
+
+                    return (
                       <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, rgba(201,162,39,0.2) 0%, rgba(201,162,39,0.08) 100%)",
-                          color: "hsl(43,74%,52%)",
-                        }}
+                        key={u.id}
+                        className="px-4 py-3 flex items-center gap-3"
+                        data-testid={`user-row-${u.id}`}
                       >
-                        {u.name.slice(0, 2).toUpperCase()}
-                      </div>
+                        <UserAvatar
+                          name={u.name}
+                          photo={userPhoto}
+                          size="sm"
+                        />
 
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {u.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {u.email}
-                        </p>
-                      </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {u.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {u.email}
+                          </p>
+                        </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {statusLabel(u.status)}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {statusLabel(u.status)}
 
-                        {u.status === "pending" && (
-                          <>
+                          {u.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="gap-1.5 h-8 px-3 bg-green-600 hover:bg-green-500 text-white"
+                                onClick={() => handleApprove(u.id)}
+                                disabled={processingUser === u.id}
+                                data-testid={`button-approve-${u.id}`}
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Aprovar
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5 h-8 px-3 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                onClick={() => handleReject(u.id)}
+                                disabled={processingUser === u.id}
+                                data-testid={`button-reject-${u.id}`}
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                Recusar
+                              </Button>
+                            </>
+                          )}
+
+                          {u.status === "rejected" && (
                             <Button
                               size="sm"
                               className="gap-1.5 h-8 px-3 bg-green-600 hover:bg-green-500 text-white"
                               onClick={() => handleApprove(u.id)}
                               disabled={processingUser === u.id}
-                              data-testid={`button-approve-${u.id}`}
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
                               Aprovar
                             </Button>
+                          )}
 
+                          {u.status === "approved" && (
                             <Button
                               size="sm"
                               variant="outline"
                               className="gap-1.5 h-8 px-3 border-red-500/30 text-red-400 hover:bg-red-500/10"
                               onClick={() => handleReject(u.id)}
                               disabled={processingUser === u.id}
-                              data-testid={`button-reject-${u.id}`}
                             >
                               <XCircle className="w-3.5 h-3.5" />
-                              Recusar
+                              Revogar
                             </Button>
-                          </>
-                        )}
-
-                        {u.status === "rejected" && (
-                          <Button
-                            size="sm"
-                            className="gap-1.5 h-8 px-3 bg-green-600 hover:bg-green-500 text-white"
-                            onClick={() => handleApprove(u.id)}
-                            disabled={processingUser === u.id}
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Aprovar
-                          </Button>
-                        )}
-
-                        {u.status === "approved" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 h-8 px-3 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                            onClick={() => handleReject(u.id)}
-                            disabled={processingUser === u.id}
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            Revogar
-                          </Button>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             )}
           </div>
         )}
 
         {activeTab === "palpites" && (
-          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-            {loadingPredictions ? (
-              <div className="space-y-px">
+          <div className="space-y-3">
+            {loadingPredictions || loadingUsers ? (
+              <div className="space-y-2">
                 {[...Array(5)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 rounded-none" />
+                  <Skeleton key={i} className="h-20 rounded-xl" />
                 ))}
               </div>
-            ) : (predictions ?? []).length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                Nenhum palpite encontrado.
+            ) : predictionGroups.length === 0 ? (
+              <div className="bg-card border border-card-border rounded-xl px-5 py-12 text-center text-sm text-muted-foreground">
+                Nenhum participante aprovado encontrado.
               </div>
             ) : (
-              <div className="divide-y divide-border">
-                {(predictions ?? []).map((p) => (
+              predictionGroups.map((group) => {
+                const isOpen = expandedUsers.includes(group.userId);
+
+                return (
                   <div
-                    key={p.id}
-                    className="px-4 py-3 flex items-center justify-between gap-4"
+                    key={group.userId}
+                    className="bg-card border border-card-border rounded-xl overflow-hidden"
                   >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">
-                        {p.userName}
-                      </p>
+                    <button
+                      type="button"
+                      onClick={() => toggleUserPredictions(group.userId)}
+                      className="w-full px-4 py-4 flex items-center justify-between gap-4 hover:bg-muted/20 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <UserAvatar
+                          name={group.userName}
+                          photo={group.userPhoto}
+                        />
 
-                      <p className="text-xs text-muted-foreground truncate">
-                        {p.userEmail}
-                      </p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-foreground truncate">
+                            {group.userName}
+                          </p>
 
-                      <div className="mt-2 flex items-center gap-2 text-sm">
-                        {p.homeLogo && (
-                          <img
-                            src={p.homeLogo}
-                            alt={p.homeTeam}
-                            className="w-5 h-5 object-contain"
-                          />
-                        )}
+                          {group.userEmail && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {group.userEmail}
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
-                        <span className="font-medium text-foreground">
-                          {p.homeTeam}
-                        </span>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <Badge className="bg-primary/20 text-primary border-primary/30">
+                          {group.predictions.length}{" "}
+                          {group.predictions.length === 1
+                            ? "palpite"
+                            : "palpites"}
+                        </Badge>
 
-                        <span className="font-bold text-primary">
-                          {p.homeGoals} × {p.awayGoals}
-                        </span>
+                        <ChevronDown
+                          className={`w-5 h-5 text-muted-foreground transition-transform ${
+                            isOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
 
-                        <span className="font-medium text-foreground">
-                          {p.awayTeam}
-                        </span>
+                    {isOpen && (
+                      <div className="border-t border-border divide-y divide-border">
+                        {group.predictions.length === 0 ? (
+                          <div className="px-4 py-6 text-sm text-muted-foreground text-center">
+                            Este participante ainda não fez nenhum palpite.
+                          </div>
+                        ) : (
+                          group.predictions.map((p) => (
+                            <div
+                              key={p.id}
+                              className="px-4 py-3 flex items-center justify-between gap-4"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 text-sm flex-wrap">
+                                  {p.homeLogo && (
+                                    <img
+                                      src={p.homeLogo}
+                                      alt={p.homeTeam}
+                                      className="w-5 h-5 object-contain"
+                                    />
+                                  )}
 
-                        {p.awayLogo && (
-                          <img
-                            src={p.awayLogo}
-                            alt={p.awayTeam}
-                            className="w-5 h-5 object-contain"
-                          />
+                                  <span className="font-medium text-foreground">
+                                    {p.homeTeam}
+                                  </span>
+
+                                  <span className="font-bold text-primary">
+                                    {p.homeGoals} × {p.awayGoals}
+                                  </span>
+
+                                  <span className="font-medium text-foreground">
+                                    {p.awayTeam}
+                                  </span>
+
+                                  {p.awayLogo && (
+                                    <img
+                                      src={p.awayLogo}
+                                      alt={p.awayTeam}
+                                      className="w-5 h-5 object-contain"
+                                    />
+                                  )}
+                                </div>
+
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Jogo:{" "}
+                                  {format(
+                                    new Date(p.matchDate),
+                                    "dd/MM HH:mm",
+                                    {
+                                      locale: ptBR,
+                                    }
+                                  )}
+                                </p>
+                              </div>
+
+                              <div className="text-right flex-shrink-0">
+                                <Badge variant="secondary" className="mb-1">
+                                  {predictionStatusLabel(p.status)}
+                                </Badge>
+
+                                <p className="text-xs text-muted-foreground">
+                                  Palpite feito em{" "}
+                                  {format(
+                                    new Date(p.createdAt),
+                                    "dd/MM HH:mm",
+                                    {
+                                      locale: ptBR,
+                                    }
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          ))
                         )}
                       </div>
-                    </div>
-
-                    <div className="text-right flex-shrink-0">
-                      <Badge variant="secondary" className="mb-1">
-                        {p.status === "live"
-                          ? "Ao Vivo"
-                          : p.status === "finished"
-                          ? "Encerrado"
-                          : "Em Breve"}
-                      </Badge>
-
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(p.createdAt), "dd/MM HH:mm", {
-                          locale: ptBR,
-                        })}
-                      </p>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })
             )}
           </div>
         )}
