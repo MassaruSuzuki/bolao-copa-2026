@@ -3,6 +3,7 @@ import {
   useGetMatch,
   getGetMatchQueryKey,
   useUpsertPrediction,
+  useListMyPredictions,
   getListMyPredictionsQueryKey,
 } from "@workspace/api-client-react";
 import { Layout, UserAvatar } from "@/components/Layout";
@@ -13,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Lock, Users, LockOpen } from "lucide-react";
+import { ArrowLeft, Lock, Users, LockOpen, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,16 @@ type MatchWithUnlock = {
       avatarUrl?: string | null;
     };
   }>;
+};
+
+type MyPrediction = {
+  id: number;
+  userId: number;
+  matchId: number;
+  homeGoals: number;
+  awayGoals: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 function calcPoints(
@@ -109,6 +120,10 @@ export default function MatchDetailPage() {
 
   const matchId = parseInt(params.id ?? "0", 10);
 
+  const [homeGoals, setHomeGoals] = useState<string>("");
+  const [awayGoals, setAwayGoals] = useState<string>("");
+  const [isDeletingPrediction, setIsDeletingPrediction] = useState(false);
+
   const { data: rawMatch, isLoading } = useGetMatch(matchId, {
     query: {
       enabled: !!matchId,
@@ -116,12 +131,20 @@ export default function MatchDetailPage() {
     },
   });
 
+  const { data: rawMyPredictions = [] } = useListMyPredictions();
+
   const match = rawMatch as MatchWithUnlock | undefined;
+  const myPredictions = rawMyPredictions as MyPrediction[];
 
-  const myPred = match?.predictions?.find((p) => p.user.id === user?.id);
+  const myPredFromMatch = match?.predictions?.find(
+    (p) => Number(p.user.id) === Number(user?.id)
+  );
 
-  const [homeGoals, setHomeGoals] = useState<string>("");
-  const [awayGoals, setAwayGoals] = useState<string>("");
+  const myPredFromMyList = myPredictions.find(
+    (p) => Number(p.matchId) === Number(matchId)
+  );
+
+  const myPred = myPredFromMatch ?? myPredFromMyList;
 
   const upsertMutation = useUpsertPrediction();
 
@@ -137,7 +160,6 @@ export default function MatchDetailPage() {
     (deadlineReached && !isUnlockedByAdmin);
 
   const alreadyHasPrediction = !!myPred;
-
   const canCreatePrediction = !isLocked && !alreadyHasPrediction;
 
   const handleSubmit = () => {
@@ -162,19 +184,13 @@ export default function MatchDetailPage() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           toast({
             title: "Palpite salvo!",
             description: `${match?.homeTeam} ${h} x ${a} ${match?.awayTeam}`,
           });
 
-          qc.invalidateQueries({
-            queryKey: getGetMatchQueryKey(matchId),
-          });
-
-          qc.invalidateQueries({
-            queryKey: getListMyPredictionsQueryKey(),
-          });
+          await qc.invalidateQueries();
 
           setHomeGoals("");
           setAwayGoals("");
@@ -191,6 +207,53 @@ export default function MatchDetailPage() {
         },
       }
     );
+  };
+
+  const handleDeletePrediction = async () => {
+    if (!myPred?.id || isDeletingPrediction) return;
+
+    const confirmed = window.confirm(
+      "Tem certeza que deseja excluir seu palpite?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeletingPrediction(true);
+
+      const token = localStorage.getItem("bolao_token");
+
+      const response = await fetch(`/api/predictions/${myPred.id}`, {
+        method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Erro ao excluir palpite");
+      }
+
+      toast({
+        title: "Palpite excluído",
+        description: "Agora você pode fazer um novo palpite para esta partida.",
+      });
+
+      await qc.invalidateQueries();
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Erro ao excluir palpite";
+
+      toast({
+        title: "Erro",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingPrediction(false);
+    }
   };
 
   if (isLoading) {
@@ -356,6 +419,19 @@ export default function MatchDetailPage() {
               <p className="text-xs text-center text-muted-foreground">
                 Você já registrou seu palpite para esta partida.
               </p>
+
+              {!isLocked && (
+                <Button
+                  variant="destructive"
+                  className="w-full gap-2"
+                  onClick={handleDeletePrediction}
+                  disabled={isDeletingPrediction}
+                  data-testid="button-delete-prediction"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isDeletingPrediction ? "Excluindo..." : "Excluir Palpite"}
+                </Button>
+              )}
             </div>
           ) : isLocked ? (
             <div className="flex items-center justify-center gap-4 py-4">
