@@ -172,15 +172,78 @@ router.patch("/matches/:id", requireAdmin, async (req, res): Promise<void> => {
   });
 });
 
-/**
- * DELETE usado pelo painel admin.
- *
- * Regra:
- * - Se a partida tiver palpites, NÃO apaga.
- * - Se não tiver palpites, apaga chat e depois a partida.
- *
- * Isso evita perder histórico de palpites dos jogadores.
- */
+router.patch(
+  "/admin/matches/:id/prediction-unlock",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const matchId = Number(req.params.id);
+
+    if (Number.isNaN(matchId)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(matchesTable)
+      .set({
+        predictionUnlocked: true,
+      })
+      .where(eq(matchesTable.id, matchId))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Jogo não encontrado" });
+      return;
+    }
+
+    res.json({
+      success: true,
+      match: {
+        ...updated,
+        matchDate: updated.matchDate.toISOString(),
+        createdAt: updated.createdAt.toISOString(),
+      },
+    });
+  }
+);
+
+router.patch(
+  "/admin/matches/:id/prediction-lock",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const matchId = Number(req.params.id);
+
+    if (Number.isNaN(matchId)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(matchesTable)
+      .set({
+        predictionUnlocked: false,
+      })
+      .where(eq(matchesTable.id, matchId))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Jogo não encontrado" });
+      return;
+    }
+
+    res.json({
+      success: true,
+      match: {
+        ...updated,
+        matchDate: updated.matchDate.toISOString(),
+        createdAt: updated.createdAt.toISOString(),
+      },
+    });
+  }
+);
+
 router.delete(
   "/admin/matches/:id",
   requireAuth,
@@ -227,58 +290,62 @@ router.delete(
   }
 );
 
-router.get("/matches/:id/predictions", requireAuth, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
+router.get(
+  "/matches/:id/predictions",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(raw, 10);
 
-  if (Number.isNaN(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
+    if (Number.isNaN(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
 
-  const preds = await db
-    .select({
-      id: predictionsTable.id,
-      userId: predictionsTable.userId,
-      matchId: predictionsTable.matchId,
-      homeGoals: predictionsTable.homeGoals,
-      awayGoals: predictionsTable.awayGoals,
-      createdAt: predictionsTable.createdAt,
-      updatedAt: predictionsTable.updatedAt,
-      userName: usersTable.name,
-      userEmail: usersTable.email,
-      userIsAdmin: usersTable.isAdmin,
-      userCreatedAt: usersTable.createdAt,
-    })
-    .from(predictionsTable)
-    .innerJoin(
-      usersTable,
-      and(
-        eq(predictionsTable.userId, usersTable.id),
-        eq(usersTable.status, "approved")
+    const preds = await db
+      .select({
+        id: predictionsTable.id,
+        userId: predictionsTable.userId,
+        matchId: predictionsTable.matchId,
+        homeGoals: predictionsTable.homeGoals,
+        awayGoals: predictionsTable.awayGoals,
+        createdAt: predictionsTable.createdAt,
+        updatedAt: predictionsTable.updatedAt,
+        userName: usersTable.name,
+        userEmail: usersTable.email,
+        userIsAdmin: usersTable.isAdmin,
+        userCreatedAt: usersTable.createdAt,
+      })
+      .from(predictionsTable)
+      .innerJoin(
+        usersTable,
+        and(
+          eq(predictionsTable.userId, usersTable.id),
+          eq(usersTable.status, "approved")
+        )
       )
-    )
-    .where(eq(predictionsTable.matchId, id));
+      .where(eq(predictionsTable.matchId, id));
 
-  res.json(
-    preds.map((p) => ({
-      id: p.id,
-      userId: p.userId,
-      matchId: p.matchId,
-      homeGoals: p.homeGoals,
-      awayGoals: p.awayGoals,
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
-      user: {
-        id: p.userId,
-        name: p.userName,
-        email: p.userEmail,
-        isAdmin: p.userIsAdmin,
-        createdAt: p.userCreatedAt.toISOString(),
-      },
-    }))
-  );
-});
+    res.json(
+      preds.map((p) => ({
+        id: p.id,
+        userId: p.userId,
+        matchId: p.matchId,
+        homeGoals: p.homeGoals,
+        awayGoals: p.awayGoals,
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+        user: {
+          id: p.userId,
+          name: p.userName,
+          email: p.userEmail,
+          isAdmin: p.userIsAdmin,
+          createdAt: p.userCreatedAt.toISOString(),
+        },
+      }))
+    );
+  }
+);
 
 router.get("/matches/:id/chat", requireAuth, async (req, res): Promise<void> => {
   const matchId = Number(req.params.id);

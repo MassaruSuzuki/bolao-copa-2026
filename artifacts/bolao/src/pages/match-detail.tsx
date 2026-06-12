@@ -1,25 +1,70 @@
 import { useParams, useLocation } from "wouter";
-import { useGetMatch, getGetMatchQueryKey } from "@workspace/api-client-react";
+import {
+  useGetMatch,
+  getGetMatchQueryKey,
+  useUpsertPrediction,
+  getListMyPredictionsQueryKey,
+} from "@workspace/api-client-react";
 import { Layout, UserAvatar } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Lock, Users, Trash2 } from "lucide-react";
+import { ArrowLeft, Lock, Users, LockOpen } from "lucide-react";
 import { useState } from "react";
-import { useUpsertPrediction, getGetMatchQueryKey as getMatchKey, getListMyPredictionsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 
-function calcPoints(predHome: number, predAway: number, realHome: number, realAway: number): number {
+type MatchWithUnlock = {
+  id: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeLogo?: string | null;
+  awayLogo?: string | null;
+  matchDate: string;
+  status: string;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  predictionUnlocked?: boolean;
+  predictions?: Array<{
+    id: number;
+    userId: number;
+    matchId: number;
+    homeGoals: number;
+    awayGoals: number;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      id: number;
+      name: string;
+      email: string;
+      isAdmin: boolean;
+      createdAt: string;
+      avatarUrl?: string | null;
+    };
+  }>;
+};
+
+function calcPoints(
+  predHome: number,
+  predAway: number,
+  realHome: number,
+  realAway: number
+): number {
   if (predHome === realHome && predAway === realAway) return 3;
-  const predWinner = predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
-  const realWinner = realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
+
+  const predWinner =
+    predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
+
+  const realWinner =
+    realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
+
   if (predWinner === realWinner) return 1;
+
   return 0;
 }
 
@@ -27,13 +72,32 @@ function MedalIcon({ position }: { position: number }) {
   if (position === 1) return <span className="text-base">🥇</span>;
   if (position === 2) return <span className="text-base">🥈</span>;
   if (position === 3) return <span className="text-base">🥉</span>;
-  return <span className="w-5 h-5 flex items-center justify-center text-xs text-muted-foreground font-bold">{position}</span>;
+
+  return (
+    <span className="w-5 h-5 flex items-center justify-center text-xs text-muted-foreground font-bold">
+      {position}
+    </span>
+  );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "live") return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse">Ao Vivo</Badge>;
-  if (status === "finished") return <Badge variant="secondary">Encerrado</Badge>;
-  return <Badge className="bg-primary/20 text-primary border-primary/30">Em Breve</Badge>;
+  if (status === "live") {
+    return (
+      <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse">
+        Ao Vivo
+      </Badge>
+    );
+  }
+
+  if (status === "finished") {
+    return <Badge variant="secondary">Encerrado</Badge>;
+  }
+
+  return (
+    <Badge className="bg-primary/20 text-primary border-primary/30">
+      Em Breve
+    </Badge>
+  );
 }
 
 export default function MatchDetailPage() {
@@ -42,63 +106,88 @@ export default function MatchDetailPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+
   const matchId = parseInt(params.id ?? "0", 10);
 
-  const { data: match, isLoading } = useGetMatch(matchId, {
-    query: { enabled: !!matchId, queryKey: getGetMatchQueryKey(matchId) },
+  const { data: rawMatch, isLoading } = useGetMatch(matchId, {
+    query: {
+      enabled: !!matchId,
+      queryKey: getGetMatchQueryKey(matchId),
+    },
   });
+
+  const match = rawMatch as MatchWithUnlock | undefined;
 
   const myPred = match?.predictions?.find((p) => p.user.id === user?.id);
 
   const [homeGoals, setHomeGoals] = useState<string>("");
   const [awayGoals, setAwayGoals] = useState<string>("");
-  const [deletingPred, setDeletingPred] = useState(false);
 
   const upsertMutation = useUpsertPrediction();
 
-  const isLocked = !match || match.status !== "upcoming" || differenceInMinutes(new Date(match.matchDate), new Date()) <= 60;
-  // When a prediction already exists and match is open, block the form — must delete first
-  const predExistsAndOpen = !!myPred && !isLocked;
+  const deadlineReached = match
+    ? differenceInMinutes(new Date(match.matchDate), new Date()) <= 60
+    : true;
 
-  const handleDeletePred = async () => {
-    if (!myPred) return;
-    setDeletingPred(true);
-    try {
-      const token = localStorage.getItem("bolao_token");
-      const res = await fetch(`/api/predictions/${myPred.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json() as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Erro ao excluir");
-      toast({ title: "Palpite excluído", description: "Agora você pode fazer um novo palpite." });
-      qc.invalidateQueries({ queryKey: getMatchKey(matchId) });
-      qc.invalidateQueries({ queryKey: getListMyPredictionsQueryKey() });
-    } catch (err) {
-      toast({ title: "Erro", description: err instanceof Error ? err.message : "Erro", variant: "destructive" });
-    } finally {
-      setDeletingPred(false);
-    }
-  };
+  const isUnlockedByAdmin = match?.predictionUnlocked === true;
+
+  const isLocked =
+    !match ||
+    match.status !== "upcoming" ||
+    (deadlineReached && !isUnlockedByAdmin);
+
+  const alreadyHasPrediction = !!myPred;
+
+  const canCreatePrediction = !isLocked && !alreadyHasPrediction;
 
   const handleSubmit = () => {
     const h = parseInt(homeGoals, 10);
     const a = parseInt(awayGoals, 10);
+
     if (isNaN(h) || isNaN(a) || h < 0 || a < 0) {
-      toast({ title: "Valores inválidos", description: "Insira gols válidos (0 ou mais)", variant: "destructive" });
+      toast({
+        title: "Valores inválidos",
+        description: "Insira gols válidos (0 ou mais)",
+        variant: "destructive",
+      });
       return;
     }
+
     upsertMutation.mutate(
-      { data: { matchId, homeGoals: h, awayGoals: a } },
+      {
+        data: {
+          matchId,
+          homeGoals: h,
+          awayGoals: a,
+        },
+      },
       {
         onSuccess: () => {
-          toast({ title: "Palpite salvo!", description: `${match?.homeTeam} ${h} x ${a} ${match?.awayTeam}` });
-          qc.invalidateQueries({ queryKey: getMatchKey(matchId) });
-          qc.invalidateQueries({ queryKey: getListMyPredictionsQueryKey() });
+          toast({
+            title: "Palpite salvo!",
+            description: `${match?.homeTeam} ${h} x ${a} ${match?.awayTeam}`,
+          });
+
+          qc.invalidateQueries({
+            queryKey: getGetMatchQueryKey(matchId),
+          });
+
+          qc.invalidateQueries({
+            queryKey: getListMyPredictionsQueryKey(),
+          });
+
+          setHomeGoals("");
+          setAwayGoals("");
         },
         onError: (err: unknown) => {
-          const message = err instanceof Error ? err.message : "Erro ao salvar palpite";
-          toast({ title: "Erro", description: message, variant: "destructive" });
+          const message =
+            err instanceof Error ? err.message : "Erro ao salvar palpite";
+
+          toast({
+            title: "Erro",
+            description: message,
+            variant: "destructive",
+          });
         },
       }
     );
@@ -119,7 +208,9 @@ export default function MatchDetailPage() {
   if (!match) {
     return (
       <Layout>
-        <div className="p-6 text-center text-muted-foreground">Jogo não encontrado.</div>
+        <div className="p-6 text-center text-muted-foreground">
+          Jogo não encontrado.
+        </div>
       </Layout>
     );
   }
@@ -136,12 +227,23 @@ export default function MatchDetailPage() {
           Voltar aos jogos
         </button>
 
-        {/* Match Hero */}
         <div className="bg-card border border-card-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <StatusBadge status={match.status} />
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <StatusBadge status={match.status} />
+
+              {isUnlockedByAdmin && match.status === "upcoming" && (
+                <Badge className="bg-green-500/20 text-green-400 border-green-500/30 gap-1">
+                  <LockOpen className="w-3 h-3" />
+                  Palpites liberados
+                </Badge>
+              )}
+            </div>
+
             <span className="text-xs text-muted-foreground">
-              {format(new Date(match.matchDate), "dd 'de' MMMM, HH:mm", { locale: ptBR })}
+              {format(new Date(match.matchDate), "dd 'de' MMMM, HH:mm", {
+                locale: ptBR,
+              })}
             </span>
           </div>
 
@@ -151,20 +253,33 @@ export default function MatchDetailPage() {
                 src={match.homeLogo ?? ""}
                 alt={match.homeTeam}
                 className="w-16 h-16 object-contain"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
-              <p className="font-bold text-foreground text-center">{match.homeTeam}</p>
+
+              <p className="font-bold text-foreground text-center">
+                {match.homeTeam}
+              </p>
             </div>
 
             <div className="flex flex-col items-center">
-              {(match.status === "live" || match.status === "finished") ? (
+              {match.status === "live" || match.status === "finished" ? (
                 <div className="flex items-center gap-3">
-                  <span className="text-4xl font-black text-foreground tabular-nums">{match.homeScore}</span>
+                  <span className="text-4xl font-black text-foreground tabular-nums">
+                    {match.homeScore}
+                  </span>
+
                   <span className="text-2xl text-muted-foreground">x</span>
-                  <span className="text-4xl font-black text-foreground tabular-nums">{match.awayScore}</span>
+
+                  <span className="text-4xl font-black text-foreground tabular-nums">
+                    {match.awayScore}
+                  </span>
                 </div>
               ) : (
-                <span className="text-2xl font-bold text-muted-foreground">vs</span>
+                <span className="text-2xl font-bold text-muted-foreground">
+                  vs
+                </span>
               )}
             </div>
 
@@ -173,80 +288,107 @@ export default function MatchDetailPage() {
                 src={match.awayLogo ?? ""}
                 alt={match.awayTeam}
                 className="w-16 h-16 object-contain"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
-              <p className="font-bold text-foreground text-center">{match.awayTeam}</p>
+
+              <p className="font-bold text-foreground text-center">
+                {match.awayTeam}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* My Prediction Form */}
         <div className="bg-card border border-card-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-3">
             <h2 className="font-semibold text-foreground">Meu Palpite</h2>
+
             {isLocked && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Lock className="w-3.5 h-3.5" />
-                {match.status === "live" ? "Jogo em andamento" : match.status === "finished" ? "Jogo encerrado" : "Prazo encerrado"}
+                {match.status === "live"
+                  ? "Jogo em andamento"
+                  : match.status === "finished"
+                    ? "Jogo encerrado"
+                    : "Prazo encerrado"}
+              </div>
+            )}
+
+            {!isLocked && deadlineReached && isUnlockedByAdmin && (
+              <div className="flex items-center gap-1.5 text-xs text-green-400">
+                <LockOpen className="w-3.5 h-3.5" />
+                Liberado pelo admin
               </div>
             )}
           </div>
 
-          {/* Prediction already exists and match is open — show read-only + delete */}
-          {predExistsAndOpen ? (
+          {alreadyHasPrediction ? (
             <div className="space-y-4">
               <div className="flex items-center justify-center gap-4 py-2">
                 <div className="text-center">
-                  <p className="text-xs text-muted-foreground mb-1">{match.homeTeam}</p>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {match.homeTeam}
+                  </p>
+
                   <div className="w-16 h-14 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl font-bold text-foreground">{myPred.homeGoals}</span>
+                    <span className="text-2xl font-bold text-foreground">
+                      {myPred.homeGoals}
+                    </span>
                   </div>
                 </div>
+
                 <span className="text-muted-foreground text-xl">×</span>
+
                 <div className="text-center">
-                  <p className="text-xs text-muted-foreground mb-1">{match.awayTeam}</p>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {match.awayTeam}
+                  </p>
+
                   <div className="w-16 h-14 bg-primary/10 border border-primary/30 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl font-bold text-foreground">{myPred.awayGoals}</span>
+                    <span className="text-2xl font-bold text-foreground">
+                      {myPred.awayGoals}
+                    </span>
                   </div>
                 </div>
               </div>
+
               <p className="text-xs text-center text-muted-foreground">
-                Para alterar, exclua este palpite e faça um novo
+                Você já registrou seu palpite para esta partida.
               </p>
-              <Button
-                variant="outline"
-                className="w-full gap-2 border-red-500/30 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                onClick={handleDeletePred}
-                disabled={deletingPred}
-                data-testid="button-delete-prediction"
-              >
-                <Trash2 className="w-4 h-4" />
-                {deletingPred ? "Excluindo..." : "Excluir Palpite"}
-              </Button>
             </div>
           ) : isLocked ? (
-            /* Locked (match started, deadline passed, or finished) */
             <div className="flex items-center justify-center gap-4 py-4">
               <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-1">{match.homeTeam}</p>
+                <p className="text-xs text-muted-foreground mb-1">
+                  {match.homeTeam}
+                </p>
+
                 <div className="w-16 h-14 bg-muted/30 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl font-bold text-foreground">{myPred?.homeGoals ?? "-"}</span>
+                  <span className="text-2xl font-bold text-foreground">-</span>
                 </div>
               </div>
+
               <span className="text-muted-foreground text-xl">×</span>
+
               <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-1">{match.awayTeam}</p>
+                <p className="text-xs text-muted-foreground mb-1">
+                  {match.awayTeam}
+                </p>
+
                 <div className="w-16 h-14 bg-muted/30 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl font-bold text-foreground">{myPred?.awayGoals ?? "-"}</span>
+                  <span className="text-2xl font-bold text-foreground">-</span>
                 </div>
               </div>
             </div>
-          ) : (
-            /* No prediction yet — show create form */
+          ) : canCreatePrediction ? (
             <div className="space-y-4">
               <div className="flex items-center justify-center gap-4">
                 <div className="text-center">
-                  <p className="text-xs text-muted-foreground mb-2">{match.homeTeam}</p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {match.homeTeam}
+                  </p>
+
                   <Input
                     type="number"
                     min="0"
@@ -257,9 +399,14 @@ export default function MatchDetailPage() {
                     data-testid="input-home-goals"
                   />
                 </div>
+
                 <span className="text-muted-foreground text-xl mt-5">×</span>
+
                 <div className="text-center">
-                  <p className="text-xs text-muted-foreground mb-2">{match.awayTeam}</p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {match.awayTeam}
+                  </p>
+
                   <Input
                     type="number"
                     min="0"
@@ -271,6 +418,7 @@ export default function MatchDetailPage() {
                   />
                 </div>
               </div>
+
               <Button
                 className="w-full"
                 onClick={handleSubmit}
@@ -280,24 +428,37 @@ export default function MatchDetailPage() {
                 {upsertMutation.isPending ? "Salvando..." : "Salvar Palpite"}
               </Button>
             </div>
-          )}
+          ) : null}
         </div>
 
-        {/* All Predictions — only visible when finished */}
         {match.status === "finished" && (
           <div className="bg-card border border-card-border rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center gap-2">
               <Users className="w-4 h-4 text-muted-foreground" />
-              <h2 className="font-semibold text-foreground text-sm">Palpites dos Participantes</h2>
-              <span className="ml-auto text-xs text-muted-foreground">{match.predictions?.length ?? 0} palpites</span>
+
+              <h2 className="font-semibold text-foreground text-sm">
+                Palpites dos Participantes
+              </h2>
+
+              <span className="ml-auto text-xs text-muted-foreground">
+                {match.predictions?.length ?? 0} palpites
+              </span>
             </div>
+
             <div className="divide-y divide-border">
               <AnimatePresence initial={false}>
                 {(() => {
-                  const sorted = [...(match.predictions ?? [])].map((p) => ({
-                    ...p,
-                    pts: calcPoints(p.homeGoals, p.awayGoals, match.homeScore!, match.awayScore!),
-                  })).sort((a, b) => b.pts - a.pts);
+                  const sorted = [...(match.predictions ?? [])]
+                    .map((p) => ({
+                      ...p,
+                      pts: calcPoints(
+                        p.homeGoals,
+                        p.awayGoals,
+                        match.homeScore ?? 0,
+                        match.awayScore ?? 0
+                      ),
+                    }))
+                    .sort((a, b) => b.pts - a.pts);
 
                   return sorted.map((p, idx) => (
                     <motion.div
@@ -306,35 +467,63 @@ export default function MatchDetailPage() {
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
-                      transition={{ duration: 0.35, delay: idx * 0.06, layout: { duration: 0.4 } }}
+                      transition={{
+                        duration: 0.35,
+                        delay: idx * 0.06,
+                        layout: { duration: 0.4 },
+                      }}
                       className="px-5 py-3 flex items-center gap-3"
                       data-testid={`prediction-row-${p.userId}`}
                     >
                       <div className="w-6 flex items-center justify-center flex-shrink-0">
                         <MedalIcon position={idx + 1} />
                       </div>
-                      <UserAvatar name={p.user.name} avatarUrl={(p.user as { avatarUrl?: string | null }).avatarUrl} size={8} textSize="xs" />
+
+                      <UserAvatar
+                        name={p.user.name}
+                        avatarUrl={p.user.avatarUrl}
+                        size={8}
+                        textSize="xs"
+                      />
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-foreground truncate">{p.user.name}</span>
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {p.user.name}
+                          </span>
+
                           {p.user.id === user?.id && (
                             <span className="text-xs text-primary">(você)</span>
                           )}
                         </div>
+
                         <span className="text-sm font-bold text-muted-foreground tabular-nums">
                           {p.homeGoals} × {p.awayGoals}
                         </span>
                       </div>
+
                       <div className="text-right flex-shrink-0">
-                        <span className={`text-lg font-black tabular-nums ${p.pts === 5 ? "text-primary" : p.pts === 3 ? "text-foreground" : "text-muted-foreground"}`}>
+                        <span
+                          className={`text-lg font-black tabular-nums ${
+                            p.pts === 5
+                              ? "text-primary"
+                              : p.pts === 3
+                                ? "text-foreground"
+                                : "text-muted-foreground"
+                          }`}
+                        >
                           {p.pts}
                         </span>
-                        <span className="text-xs text-muted-foreground ml-0.5">pts</span>
+
+                        <span className="text-xs text-muted-foreground ml-0.5">
+                          pts
+                        </span>
                       </div>
                     </motion.div>
                   ));
                 })()}
               </AnimatePresence>
+
               {!match.predictions?.length && (
                 <div className="px-5 py-8 text-center text-sm text-muted-foreground">
                   Nenhum palpite registrado.

@@ -44,6 +44,7 @@ import {
   Clock,
   FileText,
   ChevronDown,
+  LockOpen,
 } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
@@ -99,6 +100,20 @@ interface PredictionGroup {
   userPhoto?: string | null;
   predictions: AdminPrediction[];
 }
+
+type AdminMatch = {
+  id: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeLogo?: string | null;
+  awayLogo?: string | null;
+  matchDate: string;
+  status: MatchStatus;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  youtubeUrl?: string | null;
+  predictionUnlocked?: boolean;
+};
 
 function useAdminUsers() {
   return useQuery<ParticipantUser[]>({
@@ -215,6 +230,7 @@ export default function AdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncingLive, setSyncingLive] = useState(false);
   const [processingUser, setProcessingUser] = useState<number | null>(null);
+  const [processingUnlock, setProcessingUnlock] = useState<number | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
 
   const { data: participants, isLoading: loadingUsers } = useAdminUsers();
@@ -362,6 +378,146 @@ export default function AdminPage() {
     }
   };
 
+  const handleUnlockPredictions = async (matchId: number) => {
+    const confirmUnlock = window.confirm(
+      "Deseja liberar palpites para esta partida mesmo dentro da última 1 hora?"
+    );
+
+    if (!confirmUnlock) return;
+
+    setProcessingUnlock(matchId);
+
+    try {
+      const token = localStorage.getItem("bolao_token");
+
+      const res = await fetch(
+        `/api/admin/matches/${matchId}/prediction-unlock`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+       const handleLockPredictions = async (matchId: number) => {
+  const confirmLock = window.confirm(
+    "Deseja travar novamente os palpites desta partida?"
+  );
+
+  if (!confirmLock) return;
+
+  setProcessingUnlock(matchId);
+
+  try {
+    const token = localStorage.getItem("bolao_token");
+
+    const res = await fetch(`/api/admin/matches/${matchId}/prediction-lock`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    if (!res.ok) {
+      throw new Error(data?.error ?? "Erro ao travar palpites");
+    }
+
+    toast({
+      title: "Palpites travados!",
+      description: "A liberação foi removida desta partida.",
+    });
+
+    qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+  } catch (err) {
+    toast({
+      title: "Erro",
+      description:
+        err instanceof Error ? err.message : "Erro ao travar palpites",
+      variant: "destructive",
+    });
+  } finally {
+    setProcessingUnlock(null);
+  }
+}; 
+
+
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Erro ao liberar palpites");
+      }
+
+      toast({
+        title: "Palpites liberados!",
+        description: "Os usuários podem palpitar nesta partida.",
+      });
+
+      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description:
+          err instanceof Error ? err.message : "Erro ao liberar palpites",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingUnlock(null);
+    }
+  };
+
+  const handleLockPredictions = async (matchId: number) => {
+  const confirmLock = window.confirm(
+    "Deseja travar novamente os palpites desta partida?"
+  );
+
+  if (!confirmLock) return;
+
+  setProcessingUnlock(matchId);
+
+  try {
+    const token = localStorage.getItem("bolao_token");
+
+    const res = await fetch(`/api/admin/matches/${matchId}/prediction-lock`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    if (!res.ok) {
+      throw new Error(data?.error ?? "Erro ao travar palpites");
+    }
+
+    toast({
+      title: "Palpites travados!",
+      description: "A liberação foi removida desta partida.",
+    });
+
+    qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+  } catch (err) {
+    toast({
+      title: "Erro",
+      description:
+        err instanceof Error ? err.message : "Erro ao travar palpites",
+      variant: "destructive",
+    });
+  } finally {
+    setProcessingUnlock(null);
+  }
+};
+
+
   const handleApprove = async (userId: number) => {
     setProcessingUser(userId);
 
@@ -495,29 +651,22 @@ export default function AdminPage() {
     }
   };
 
-  const openEdit = (
-    m: typeof matches extends (infer T)[] | undefined ? T : never
-  ) => {
+  const openEdit = (m: AdminMatch) => {
     if (!m) return;
 
     setActiveTab("jogos");
 
     setEditState({
-      id: (m as { id: number }).id,
-      homeTeam: (m as { homeTeam: string }).homeTeam,
-      awayTeam: (m as { awayTeam: string }).awayTeam,
-      homeLogo: (m as { homeLogo?: string | null }).homeLogo ?? "",
-      awayLogo: (m as { awayLogo?: string | null }).awayLogo ?? "",
-      matchDate: format(
-        new Date((m as { matchDate: string }).matchDate),
-        "yyyy-MM-dd'T'HH:mm"
-      ),
-      status: (m as { status: string }).status as MatchStatus,
-      homeScore:
-        (m as { homeScore?: number | null }).homeScore?.toString() ?? "",
-      awayScore:
-        (m as { awayScore?: number | null }).awayScore?.toString() ?? "",
-      youtubeUrl: (m as { youtubeUrl?: string | null }).youtubeUrl ?? "",
+      id: m.id,
+      homeTeam: m.homeTeam,
+      awayTeam: m.awayTeam,
+      homeLogo: m.homeLogo ?? "",
+      awayLogo: m.awayLogo ?? "",
+      matchDate: format(new Date(m.matchDate), "yyyy-MM-dd'T'HH:mm"),
+      status: m.status,
+      homeScore: m.homeScore?.toString() ?? "",
+      awayScore: m.awayScore?.toString() ?? "",
+      youtubeUrl: m.youtubeUrl ?? "",
     });
   };
 
@@ -1026,7 +1175,7 @@ export default function AdminPage() {
           ) : (
             <div className="bg-card border border-card-border rounded-xl overflow-hidden">
               <div className="divide-y divide-border">
-                {matches?.map((m) => (
+                {(matches as AdminMatch[] | undefined)?.map((m) => (
                   <div
                     key={m.id}
                     className="px-4 py-3.5 flex items-center gap-4"
@@ -1066,7 +1215,7 @@ export default function AdminPage() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                       <span className="text-xs text-muted-foreground hidden md:block">
                         {format(new Date(m.matchDate), "dd/MM HH:mm", {
                           locale: ptBR,
@@ -1087,6 +1236,40 @@ export default function AdminPage() {
                         <Badge className="bg-primary/20 text-primary border-primary/30">
                           Em Breve
                         </Badge>
+                      )}
+
+                      {m.predictionUnlocked && (
+  <>
+    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+      Palpites Liberados
+    </Badge>
+
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-1.5 h-8 border-red-500/30 text-red-400 hover:bg-red-500/10"
+      onClick={() => handleLockPredictions(m.id)}
+      disabled={processingUnlock === m.id}
+    >
+      Travar Palpites
+    </Button>
+  </>
+)}
+
+                      {m.status === "upcoming" && !m.predictionUnlocked && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 h-8 border-green-500/30 text-green-400 hover:bg-green-500/10"
+                          onClick={() => handleUnlockPredictions(m.id)}
+                          disabled={processingUnlock === m.id}
+                          data-testid={`button-unlock-predictions-${m.id}`}
+                        >
+                          <LockOpen className="w-3.5 h-3.5" />
+                          {processingUnlock === m.id
+                            ? "Liberando..."
+                            : "Liberar Palpites"}
+                        </Button>
                       )}
 
                       <Button

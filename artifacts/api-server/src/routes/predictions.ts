@@ -13,6 +13,16 @@ const router: IRouter = Router();
 
 const DEADLINE_MINUTES = 60;
 
+function toIsoPrediction<T extends { createdAt: Date; updatedAt: Date }>(
+  prediction: T
+) {
+  return {
+    ...prediction,
+    createdAt: prediction.createdAt.toISOString(),
+    updatedAt: prediction.updatedAt.toISOString(),
+  };
+}
+
 router.get(
   "/admin/predictions",
   requireAuth,
@@ -33,6 +43,7 @@ router.get(
         awayLogo: matchesTable.awayLogo,
         matchDate: matchesTable.matchDate,
         status: matchesTable.status,
+        predictionUnlocked: matchesTable.predictionUnlocked,
 
         homeGoals: predictionsTable.homeGoals,
         awayGoals: predictionsTable.awayGoals,
@@ -89,9 +100,9 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
     match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
   );
 
-  if (now >= deadline) {
+  if (now >= deadline && !match.predictionUnlocked) {
     res.status(400).json({
-      error: "Prazo para palpites encerrado (1 hora antes do jogo)",
+      error: "Prazo para palpites encerrado. Aguarde liberação do admin.",
     });
     return;
   }
@@ -108,8 +119,7 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
 
   if (existing) {
     res.status(409).json({
-      error:
-        "Você já tem um palpite para este jogo. Exclua-o para fazer um novo.",
+      error: "Você já tem um palpite para este jogo.",
     });
     return;
   }
@@ -124,20 +134,16 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
     })
     .returning();
 
-  res.json({
-    ...prediction,
-    createdAt: prediction.createdAt.toISOString(),
-    updatedAt: prediction.updatedAt.toISOString(),
-  });
+  res.json(toIsoPrediction(prediction));
 });
 
 router.delete(
   "/predictions/:id",
   requireAuth,
   async (req, res): Promise<void> => {
-    const id = parseInt(req.params.id as string, 10);
+    const predictionId = Number(req.params.id);
 
-    if (isNaN(id)) {
+    if (Number.isNaN(predictionId)) {
       res.status(400).json({ error: "ID inválido" });
       return;
     }
@@ -145,10 +151,17 @@ router.delete(
     const userId = req.user!.userId;
 
     const [existing] = await db
-      .select()
+      .select({
+        id: predictionsTable.id,
+        userId: predictionsTable.userId,
+        matchId: predictionsTable.matchId,
+      })
       .from(predictionsTable)
       .where(
-        and(eq(predictionsTable.id, id), eq(predictionsTable.userId, userId))
+        and(
+          eq(predictionsTable.id, predictionId),
+          eq(predictionsTable.userId, userId)
+        )
       );
 
     if (!existing) {
@@ -161,30 +174,44 @@ router.delete(
       .from(matchesTable)
       .where(eq(matchesTable.id, existing.matchId));
 
-    if (match && match.status !== "upcoming") {
+    if (!match) {
+      res.status(404).json({ error: "Jogo não encontrado" });
+      return;
+    }
+
+    if (match.status !== "upcoming") {
       res.status(400).json({
         error: "Não é possível excluir palpite de jogo já iniciado",
       });
       return;
     }
 
-    if (match) {
-      const now = new Date();
-      const deadline = new Date(
-        match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
-      );
+    const now = new Date();
+    const deadline = new Date(
+      match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
+    );
 
-      if (now >= deadline) {
-        res.status(400).json({
-          error: "Prazo encerrado, não é possível excluir o palpite",
-        });
-        return;
-      }
+    if (now >= deadline && !match.predictionUnlocked) {
+      res.status(400).json({
+        error:
+          "Prazo encerrado. Só é possível excluir se o admin liberar os palpites.",
+      });
+      return;
     }
 
-    await db.delete(predictionsTable).where(eq(predictionsTable.id, id));
+    await db
+      .delete(predictionsTable)
+      .where(
+        and(
+          eq(predictionsTable.id, predictionId),
+          eq(predictionsTable.userId, userId)
+        )
+      );
 
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      deletedPredictionId: predictionId,
+    });
   }
 );
 
@@ -196,13 +223,7 @@ router.get("/predictions/my", requireAuth, async (req, res): Promise<void> => {
     .from(predictionsTable)
     .where(eq(predictionsTable.userId, userId));
 
-  res.json(
-    preds.map((p) => ({
-      ...p,
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
-    }))
-  );
+  res.json(preds.map((p) => toIsoPrediction(p)));
 });
 
 export default router;

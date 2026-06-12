@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import {
   useGetLiveRanking,
@@ -7,42 +7,24 @@ import {
   getGetRankingQueryKey,
   useListMatches,
   getListMatchesQueryKey,
+  type RankingEntry,
 } from "@workspace/api-client-react";
 
 import { Layout } from "@/components/Layout";
 import { AnimatedRankingList } from "@/components/AnimatedRankingList";
+import { MatchChat } from "@/components/MatchChat";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+
 import {
   Radio,
   Zap,
   Clock,
   ChevronDown,
   ChevronUp,
-  Youtube,
   Trophy,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { getYoutubeEmbedUrl } from "@/lib/youtube";
-import { cn } from "@/lib/utils";
-import { MatchChat } from "@/components/MatchChat";
-import type { RankingEntry } from "@workspace/api-client-react";
-
-function toLiveShape(entries: RankingEntry[] | undefined) {
-  return (entries ?? []).map((e) => ({
-    userId: e.userId,
-    name: e.name,
-    basePoints: e.totalPoints,
-    liveBonus: 0,
-    projectedTotal: e.totalPoints,
-    liveMatchId: null,
-    predHome: null,
-    predAway: null,
-    currentHome: null,
-    currentAway: null,
-    proximity: null,
-    hasPrediction: e.totalPredictions > 0,
-  }));
-}
 
 type LiveMatch = {
   id: number;
@@ -52,104 +34,24 @@ type LiveMatch = {
   awayLogo?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
-  youtubeUrl?: string | null;
 };
 
-const StableYoutubePlayer = memo(
-  function StableYoutubePlayer({ youtubeUrl }: { youtubeUrl?: string | null }) {
-    const embedUrlRef = useRef<string | null>(null);
-
-    if (!embedUrlRef.current && youtubeUrl) {
-      embedUrlRef.current = getYoutubeEmbedUrl(youtubeUrl);
-    }
-
-    const embedUrl = embedUrlRef.current;
-
-    if (!youtubeUrl || !embedUrl) {
-      return (
-        <div className="w-full">
-          <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Youtube className="h-3.5 w-3.5 text-red-500" />
-            <span>Transmissão ao vivo</span>
-          </div>
-
-          <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-black p-6 text-center">
-            <Youtube className="h-10 w-10 text-red-500" />
-
-            <div>
-              <p className="text-sm font-semibold text-white">
-                Transmissão indisponível
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Nenhum link de transmissão foi informado.
-              </p>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="w-full">
-        <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Youtube className="h-3.5 w-3.5 text-red-500" />
-          <span>Transmissão ao vivo</span>
-        </div>
-
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
-          <iframe
-            src={embedUrl}
-            title="Transmissão ao vivo"
-            className="aspect-video w-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
-        </div>
-
-        <div className="mt-3 flex justify-center">
-          <button
-            type="button"
-            onClick={() =>
-              window.open(youtubeUrl, "_blank", "noopener,noreferrer")
-            }
-            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
-          >
-            <Youtube className="h-4 w-4" />
-            Assistir no YouTube
-          </button>
-        </div>
-      </div>
-    );
-  },
-  (prev, next) => prev.youtubeUrl === next.youtubeUrl
-);
-
-const LiveMediaSection = memo(
-  function LiveMediaSection({
-    matchId,
-    youtubeUrl,
-  }: {
-    matchId: number;
-    youtubeUrl?: string | null;
-  }) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="grid items-stretch justify-center gap-4 xl:grid-cols-[minmax(0,720px)_360px]">
-          <StableYoutubePlayer youtubeUrl={youtubeUrl} />
-
-          <div className="w-full">
-            <div className="h-full [&>div]:h-full">
-              <MatchChat matchId={matchId} isLive />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  },
-  (prev, next) =>
-    prev.matchId === next.matchId && prev.youtubeUrl === next.youtubeUrl
-);
+function toLiveShape(entries: RankingEntry[] | undefined) {
+  return (entries ?? []).map((entry) => ({
+    userId: entry.userId,
+    name: entry.name,
+    basePoints: entry.totalPoints,
+    liveBonus: 0,
+    projectedTotal: entry.totalPoints,
+    liveMatchId: null,
+    predHome: null,
+    predAway: null,
+    currentHome: null,
+    currentAway: null,
+    proximity: null,
+    hasPrediction: entry.totalPredictions > 0,
+  }));
+}
 
 function ScoreLegend() {
   return (
@@ -190,34 +92,36 @@ const LiveMatchCard = memo(
         <button
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
-          className="flex w-full cursor-pointer items-center justify-between px-5 py-4 transition-colors hover:bg-white/5"
+          className="flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-white/5"
         >
-          <div className="flex items-center gap-3">
+          <div className="flex flex-1 items-center gap-3">
             {match.homeLogo && (
               <img
                 src={match.homeLogo}
                 alt={match.homeTeam}
                 className="h-9 w-9 object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
                 }}
               />
             )}
 
-            <span className="text-base font-bold text-foreground">
+            <span className="text-left text-base font-bold text-foreground">
               {match.homeTeam}
             </span>
           </div>
 
-          <div className="px-4 text-center">
+          <div className="flex flex-col items-center justify-center px-4 text-center">
             {hasScore ? (
               <div className="flex items-center gap-2">
                 <span className="tabular-nums text-3xl font-black text-primary">
                   {match.homeScore}
                 </span>
+
                 <span className="text-xl font-bold text-muted-foreground">
                   ×
                 </span>
+
                 <span className="tabular-nums text-3xl font-black text-primary">
                   {match.awayScore}
                 </span>
@@ -228,16 +132,17 @@ const LiveMatchCard = memo(
               </span>
             )}
 
-            <div className="mt-0.5 flex items-center justify-center gap-1">
+            <div className="mt-1 flex items-center justify-center gap-1">
               <Zap className="h-3 w-3 animate-pulse text-red-400" />
+
               <span className="text-xs font-semibold text-red-400">
                 Em andamento
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-base font-bold text-foreground">
+          <div className="flex flex-1 items-center justify-end gap-3">
+            <span className="text-right text-base font-bold text-foreground">
               {match.awayTeam}
             </span>
 
@@ -246,8 +151,8 @@ const LiveMatchCard = memo(
                 src={match.awayLogo}
                 alt={match.awayTeam}
                 className="h-9 w-9 object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
                 }}
               />
             )}
@@ -263,7 +168,9 @@ const LiveMatchCard = memo(
         </button>
 
         <div className={cn("space-y-4 p-4", !expanded && "hidden")}>
-          <LiveMediaSection matchId={match.id} youtubeUrl={match.youtubeUrl} />
+          <div className="overflow-hidden rounded-xl border border-primary/20 bg-card">
+            <MatchChat matchId={match.id} isLive />
+          </div>
 
           <div className="overflow-hidden rounded-xl border border-primary/20 bg-card">
             <button
@@ -280,6 +187,7 @@ const LiveMatchCard = memo(
                   <p className="text-sm font-bold text-foreground">
                     Ranking da Partida
                   </p>
+
                   <p className="text-xs text-muted-foreground">
                     Participantes e pontuação ao vivo
                   </p>
@@ -321,7 +229,6 @@ const LiveMatchCard = memo(
   },
   (prev, next) =>
     prev.match.id === next.match.id &&
-    prev.match.youtubeUrl === next.match.youtubeUrl &&
     prev.match.homeScore === next.match.homeScore &&
     prev.match.awayScore === next.match.awayScore &&
     prev.rankingEntries === next.rankingEntries &&
@@ -337,11 +244,9 @@ export default function AoVivoPage() {
     {
       query: {
         queryKey: getListMatchesQueryKey({ status: "live" }),
-
-        // Atualiza o placar ao vivo sem desmontar o player
         staleTime: 5_000,
         refetchInterval: 10_000,
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         refetchOnReconnect: true,
         refetchOnMount: true,
       },
@@ -354,11 +259,9 @@ export default function AoVivoPage() {
     query: {
       queryKey: getGetRankingQueryKey(),
       enabled: !hasLiveMatch,
-
-      // Ranking normal não precisa atualizar toda hora
       staleTime: 30_000,
       refetchInterval: false,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       refetchOnMount: true,
     },
@@ -368,11 +271,9 @@ export default function AoVivoPage() {
     query: {
       queryKey: getGetLiveRankingQueryKey(),
       enabled: hasLiveMatch,
-
-      // Atualiza ranking ao vivo junto com o placar
       staleTime: 5_000,
       refetchInterval: 10_000,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       refetchOnMount: true,
     },
@@ -391,7 +292,7 @@ export default function AoVivoPage() {
   return (
     <Layout>
       <div className="space-y-6 p-6">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
               <Radio
@@ -402,12 +303,13 @@ export default function AoVivoPage() {
                     : "text-muted-foreground"
                 )}
               />
+
               Ao Vivo
             </h1>
 
             <p className="mt-0.5 text-sm text-muted-foreground">
               {hasLiveMatch
-                ? "Jogo em andamento — ranking dentro de cada partida"
+                ? "Jogo em andamento — chat e ranking da partida"
                 : "Nenhum jogo em andamento no momento"}
             </p>
           </div>
@@ -415,6 +317,7 @@ export default function AoVivoPage() {
           {hasLiveMatch && (
             <div className="flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5">
               <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+
               <span className="text-xs font-semibold text-red-400">
                 AO VIVO
               </span>
@@ -430,13 +333,13 @@ export default function AoVivoPage() {
         )}
 
         {hasLiveMatch &&
-          liveMatches?.map((match, idx) => (
+          liveMatches?.map((match, index) => (
             <LiveMatchCard
               key={match.id}
               match={match}
               rankingEntries={rankingEntries}
               currentUserId={user?.id}
-              isFirst={idx === 0}
+              isFirst={index === 0}
             />
           ))}
 
