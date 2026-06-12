@@ -154,10 +154,16 @@ export default function DashboardPage() {
 
   const rankingLoading = hasLiveMatch ? loadingLive : false;
 
-  const firstPlace = rankingEntries[0];
-  const secondPlace = rankingEntries[1];
-  const thirdPlace = rankingEntries[2];
-  const otherPlaces = rankingEntries.slice(3);
+  const leaderPoints =
+    rankingEntries.length > 0 ? getPoints(rankingEntries[0]) : 0;
+
+  const leaders = rankingEntries.filter(
+    (entry) => getPoints(entry) === leaderPoints
+  );
+
+  const otherPlaces = rankingEntries.filter(
+    (entry) => getPoints(entry) !== leaderPoints
+  );
 
   const stats = [
     {
@@ -509,57 +515,39 @@ export default function DashboardPage() {
             ) : rankingEntries.length > 0 ? (
               <>
                 <div className="px-5 pt-6 pb-5 border-b border-border">
-                  <div className="grid grid-cols-3 items-end gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className="w-full h-20 rounded-t-xl border border-slate-500/30 bg-slate-500/15 flex flex-col items-center justify-center">
-                        <span className="text-2xl">🥈</span>
-                        <span className="text-xs font-bold text-slate-300 mt-1">
-                          2º
-                        </span>
+                  <div className="text-center mb-4">
+                    <h4 className="text-sm font-bold text-yellow-400">
+                      {leaders.length > 1
+                        ? "Líderes do Bolão"
+                        : "Líder do Bolão"}
+                    </h4>
+                  </div>
+
+                  <div className="space-y-3">
+                    {leaders.map((entry) => (
+                      <div
+                        key={entry.userId}
+                        className="flex items-center justify-between rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-4"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-500/20 text-xl">
+                            👑
+                          </div>
+
+                          <p className="truncate text-sm font-bold text-yellow-400">
+                            {entry.name}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-lg font-black text-primary">
+                            {getPoints(entry)}
+                          </p>
+
+                          <p className="text-xs text-muted-foreground">pts</p>
+                        </div>
                       </div>
-
-                      <p className="mt-2 text-sm font-semibold text-foreground text-center truncate w-full">
-                        {secondPlace?.name ?? "-"}
-                      </p>
-
-                      <p className="text-xs text-muted-foreground">
-                        {getPoints(secondPlace)} pts
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <div className="w-full h-28 rounded-t-xl border border-yellow-500/40 bg-yellow-500/20 flex flex-col items-center justify-center shadow-[0_0_28px_rgba(234,179,8,0.15)]">
-                        <span className="text-3xl">🏆</span>
-                        <span className="text-xs font-bold text-yellow-400 mt-1">
-                          1º
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-sm font-bold text-yellow-400 text-center truncate w-full">
-                        {firstPlace?.name ?? "-"}
-                      </p>
-
-                      <p className="text-xs text-muted-foreground">
-                        {getPoints(firstPlace)} pts
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <div className="w-full h-16 rounded-t-xl border border-orange-500/30 bg-orange-500/15 flex flex-col items-center justify-center">
-                        <span className="text-2xl">🥉</span>
-                        <span className="text-xs font-bold text-orange-400 mt-1">
-                          3º
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-sm font-semibold text-foreground text-center truncate w-full">
-                        {thirdPlace?.name ?? "-"}
-                      </p>
-
-                      <p className="text-xs text-muted-foreground">
-                        {getPoints(thirdPlace)} pts
-                      </p>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
@@ -572,7 +560,7 @@ export default function DashboardPage() {
                       >
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
-                            {index + 4}º
+                            {leaders.length + index + 1}º
                           </div>
 
                           <p className="text-sm font-semibold text-foreground">
