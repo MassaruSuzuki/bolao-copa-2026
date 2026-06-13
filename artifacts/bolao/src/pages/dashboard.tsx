@@ -92,8 +92,11 @@ function getPoints(entry: any) {
 export default function DashboardPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [liveIndex, setLiveIndex] = useState(0);
+  const [showRemainingGames, setShowRemainingGames] = useState(false);
 
   const userName =
     user?.name ||
@@ -113,6 +116,18 @@ export default function DashboardPage() {
   const hasLiveMatch = allLiveMatches.length > 0;
   const hasMultipleLiveMatches = allLiveMatches.length > 1;
   const mainLiveMatch = allLiveMatches[liveIndex] ?? allLiveMatches[0] ?? null;
+
+  const totalMatches = data?.totalMatches ?? 0;
+  const finishedMatches = data?.finishedMatches ?? 0;
+  const remainingMatches = Math.max(totalMatches - finishedMatches, 0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowRemainingGames((prev) => !prev);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (liveIndex > 0 && liveIndex >= allLiveMatches.length) {
@@ -171,24 +186,28 @@ export default function DashboardPage() {
       value: data?.totalParticipants ?? 0,
       icon: Users,
       color: "text-blue-400",
+      animated: false,
     },
     {
-      label: "Total de Jogos",
-      value: data?.totalMatches ?? 0,
+      label: showRemainingGames ? "Jogos Restantes" : "Total de Jogos",
+      value: showRemainingGames ? remainingMatches : totalMatches,
       icon: Calendar,
       color: "text-purple-400",
+      animated: true,
     },
     {
       label: "Jogos Ao Vivo",
       value: allLiveMatches.length,
       icon: Zap,
       color: "text-red-400",
+      animated: false,
     },
     {
       label: "Encerrados",
-      value: data?.finishedMatches ?? 0,
+      value: finishedMatches,
       icon: Trophy,
       color: "text-primary",
+      animated: false,
     },
   ];
 
@@ -215,6 +234,32 @@ export default function DashboardPage() {
 
   return (
     <Layout>
+      <style>
+        {`
+          @keyframes dashboardFlipStat {
+            0% {
+              transform: rotateX(90deg) translateY(12px);
+              opacity: 0;
+            }
+
+            45% {
+              transform: rotateX(-10deg) translateY(0);
+              opacity: 1;
+            }
+
+            100% {
+              transform: rotateX(0deg) translateY(0);
+              opacity: 1;
+            }
+          }
+
+          .dashboard-flip-stat {
+            animation: dashboardFlipStat 520ms ease-out;
+            transform-origin: center;
+          }
+        `}
+      </style>
+
       <div className="p-6 space-y-6">
         <div>
           <p className="text-sm text-muted-foreground">
@@ -232,20 +277,35 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {stats.map(({ label, value, icon: Icon, color }) => (
+          {stats.map(({ label, value, icon: Icon, color, animated }) => (
             <div
               key={label}
-              className="bg-card border border-card-border rounded-xl p-4"
+              className="bg-card border border-card-border rounded-xl p-4 overflow-hidden"
               data-testid={`stat-${label.toLowerCase().replace(/ /g, "-")}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-muted-foreground font-medium">
+                <p
+                  key={`label-${label}`}
+                  className={`text-xs text-muted-foreground font-medium ${
+                    animated ? "dashboard-flip-stat" : ""
+                  }`}
+                >
                   {label}
                 </p>
+
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
 
-              <p className="text-2xl font-bold text-foreground">{value}</p>
+              <div className="h-8" style={{ perspective: "700px" }}>
+                <p
+                  key={`value-${label}-${value}`}
+                  className={`text-2xl font-bold text-foreground tabular-nums ${
+                    animated ? "dashboard-flip-stat" : ""
+                  }`}
+                >
+                  {value}
+                </p>
+              </div>
             </div>
           ))}
         </div>
