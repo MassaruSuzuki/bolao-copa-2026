@@ -6,13 +6,29 @@ import {
   fetchAllWcMatches,
   fetchLiveWcMatches,
   mapFdMatch,
-  toInternalStatus,
 } from "../services/footballData";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
 const LIVE_FALLBACK_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+type ApiStatus =
+  | "SCHEDULED"
+  | "TIMED"
+  | "IN_PLAY"
+  | "PAUSED"
+  | "FINISHED"
+  | "SUSPENDED"
+  | "POSTPONED"
+  | "CANCELLED"
+  | "AWARDED";
+
+function toInternalStatus(apiStatus: ApiStatus): "upcoming" | "live" | "finished" {
+  if (apiStatus === "IN_PLAY" || apiStatus === "PAUSED") return "live";
+  if (apiStatus === "FINISHED" || apiStatus === "AWARDED") return "finished";
+  return "upcoming";
+}
 
 function safeScore(
   newScore: number | null | undefined,
@@ -33,7 +49,7 @@ function pickScore(score?: {
   };
 }
 
-function shouldForceLiveByTime(matchDate: Date, apiStatus: string): boolean {
+function shouldForceLiveByTime(matchDate: Date, apiStatus: ApiStatus): boolean {
   const now = Date.now();
   const start = new Date(matchDate).getTime();
   const end = start + LIVE_FALLBACK_WINDOW_MS;
@@ -69,16 +85,7 @@ async function fetchMatchByExternalId(externalId: number) {
   return response.json() as Promise<{
     id: number;
     utcDate: string;
-    status:
-      | "SCHEDULED"
-      | "TIMED"
-      | "IN_PLAY"
-      | "PAUSED"
-      | "FINISHED"
-      | "SUSPENDED"
-      | "POSTPONED"
-      | "CANCELLED"
-      | "AWARDED";
+    status: ApiStatus;
     score?: {
       winner?: string | null;
       fullTime?: { home: number | null; away: number | null };
@@ -197,7 +204,7 @@ export async function syncLiveScores(): Promise<{
     const statusText = String(match.status);
 
     const shouldCheck =
-      statusText === "scheduled" || statusText === "live";
+      statusText === "upcoming" || statusText === "live";
 
     if (!shouldCheck) continue;
 
