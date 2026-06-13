@@ -3,33 +3,57 @@ import { syncLiveScores } from "../routes/sync";
 
 const POLL_INTERVAL_MS = 60_000;
 
-let timer: ReturnType<typeof setInterval> | null = null;
+let timer: NodeJS.Timeout | null = null;
 
-export function startLivePoller() {
-  if (timer) return;
+async function runSync(): Promise<void> {
+  try {
+    const result = await syncLiveScores();
 
-  logger.info("Live score poller started (60s interval)");
+    logger.info(
+      {
+        updated: result.updated,
+      },
+      "Live poller sync completed"
+    );
+  } catch (err) {
+    logger.error(
+      {
+        err,
+      },
+      "Live poller sync failed"
+    );
+  }
+}
 
-  timer = setInterval(async () => {
-    try {
-      const result = await syncLiveScores();
+export function startLivePoller(): void {
+  if (timer) {
+    logger.warn("Live poller already running");
+    return;
+  }
 
-      if (result.updated > 0) {
-        logger.info(
-          { updated: result.updated },
-          "Live poller updated scores"
-        );
-      }
-    } catch (err) {
-      logger.error({ err }, "Live poller error");
-    }
+  logger.info(
+    {
+      intervalMs: POLL_INTERVAL_MS,
+    },
+    "Live poller started"
+  );
+
+  // Executa imediatamente ao iniciar o servidor
+  void runSync();
+
+  // Continua executando a cada 60 segundos
+  timer = setInterval(() => {
+    void runSync();
   }, POLL_INTERVAL_MS);
 }
 
-export function stopLivePoller() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-    logger.info("Live score poller stopped");
+export function stopLivePoller(): void {
+  if (!timer) {
+    return;
   }
+
+  clearInterval(timer);
+  timer = null;
+
+  logger.info("Live poller stopped");
 }

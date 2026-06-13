@@ -12,6 +12,8 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+const LIVE_FALLBACK_WINDOW_MS = 3 * 60 * 60 * 1000;
+
 function safeScore(
   newScore: number | null | undefined,
   oldScore: number | null
@@ -29,6 +31,18 @@ function pickScore(score?: {
     home: score?.fullTime?.home ?? score?.halfTime?.home ?? null,
     away: score?.fullTime?.away ?? score?.halfTime?.away ?? null,
   };
+}
+
+function shouldForceLiveByTime(matchDate: Date, apiStatus: string): boolean {
+  const now = Date.now();
+  const start = new Date(matchDate).getTime();
+  const end = start + LIVE_FALLBACK_WINDOW_MS;
+
+  return (
+    now >= start &&
+    now <= end &&
+    (apiStatus === "SCHEDULED" || apiStatus === "TIMED")
+  );
 }
 
 async function fetchMatchByExternalId(externalId: number) {
@@ -91,7 +105,6 @@ async function syncAllMatches(): Promise<{
     const [existing] = await db
       .select({
         id: matchesTable.id,
-        status: matchesTable.status,
         homeScore: matchesTable.homeScore,
         awayScore: matchesTable.awayScore,
       })
@@ -125,6 +138,118 @@ async function syncAllMatches(): Promise<{
     created,
     updated,
     total: fdMatches.length,
+  };
+}
+
+export async function syncLiveScores(): Promise<{
+  updated: number;
+  correctedFromAllSync: number;
+}> {
+  let updated = 0;
+
+  const allSync = await syncAllMatches();
+  const correctedFromAllSync = allSync.updated;
+
+  const fdLiveMatches = await fetchLiveWcMatches();
+
+  for (const fdMatch of fdLiveMatches) {
+    const mapped = mapFdMatch(fdMatch);
+
+    const [existing] = await db
+      .select({
+        id: matchesTable.id,
+        homeScore: matchesTable.homeScore,
+        awayScore: matchesTable.awayScore,
+      })
+      .from(matchesTable)
+      .where(eq(matchesTable.externalId, fdMatch.id));
+
+    if (!existing) continue;
+
+    await db
+      .update(matchesTable)
+      .set({
+        status: "live",
+        homeScore: safeScore(mapped.homeScore, existing.homeScore),
+        awayScore: safeScore(mapped.awayScore, existing.awayScore),
+      })
+      .where(eq(matchesTable.externalId, fdMatch.id));
+
+    updated++;
+  }
+
+  const matchesToCheck = await db
+    .select({
+      id: matchesTable.id,
+      externalId: matchesTable.externalId,
+      homeTeam: matchesTable.homeTeam,
+      awayTeam: matchesTable.awayTeam,
+      matchDate: matchesTable.matchDate,
+      status: matchesTable.status,
+      homeScore: matchesTable.homeScore,
+      awayScore: matchesTable.awayScore,
+    })
+    .from(matchesTable);
+
+  for (const match of matchesToCheck) {
+    if (!match.externalId) continue;
+
+    const statusText = String(match.status);
+
+    const shouldCheck =
+      statusText === "scheduled" || statusText === "live";
+
+    if (!shouldCheck) continue;
+
+    const individualMatch = await fetchMatchByExternalId(match.externalId);
+    if (!individualMatch) continue;
+
+    const currentScore = pickScore(individualMatch.score);
+    const apiInternalStatus = toInternalStatus(individualMatch.status);
+
+    const finalStatus = shouldForceLiveByTime(
+      match.matchDate,
+      individualMatch.status
+    )
+      ? "live"
+      : apiInternalStatus;
+
+    await db
+      .update(matchesTable)
+      .set({
+        status: finalStatus,
+        homeScore: safeScore(currentScore.home, match.homeScore),
+        awayScore: safeScore(currentScore.away, match.awayScore),
+      })
+      .where(eq(matchesTable.id, match.id));
+
+    updated++;
+
+    logger.info(
+      {
+        id: match.id,
+        externalId: match.externalId,
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+        oldStatus: match.status,
+        apiStatus: individualMatch.status,
+        finalStatus,
+      },
+      "Partida conferida individualmente no sync automático"
+    );
+  }
+
+  logger.info(
+    {
+      updated,
+      correctedFromAllSync,
+    },
+    "Live scores synced"
+  );
+
+  return {
+    updated,
+    correctedFromAllSync,
   };
 }
 
@@ -165,113 +290,5 @@ router.post(
     }
   }
 );
-
-export async function syncLiveScores(): Promise<{
-  updated: number;
-  correctedFromAllSync: number;
-}> {
-  let updated = 0;
-
-  /**
-   * Primeiro faz o sync geral.
-   * Isso evita jogo ficar preso como "live" quando a API já mudou para "FINISHED".
-   */
-  const allSync = await syncAllMatches();
-  const correctedFromAllSync = allSync.updated;
-
-  /**
-   * Depois atualiza placar dos jogos que a API ainda considera ao vivo.
-   */
-  const fdLiveMatches = await fetchLiveWcMatches();
-
-  for (const fdMatch of fdLiveMatches) {
-    const mapped = mapFdMatch(fdMatch);
-
-    const [existing] = await db
-      .select({
-        id: matchesTable.id,
-        status: matchesTable.status,
-        homeScore: matchesTable.homeScore,
-        awayScore: matchesTable.awayScore,
-      })
-      .from(matchesTable)
-      .where(eq(matchesTable.externalId, fdMatch.id));
-
-    if (!existing) continue;
-
-    await db
-      .update(matchesTable)
-      .set({
-        status: mapped.status,
-        homeScore: safeScore(mapped.homeScore, existing.homeScore),
-        awayScore: safeScore(mapped.awayScore, existing.awayScore),
-      })
-      .where(eq(matchesTable.externalId, fdMatch.id));
-
-    updated++;
-  }
-
-  /**
-   * Por segurança, verifica qualquer jogo que ainda esteja "live" no banco.
-   * Se a API individual disser FINISHED, ele vira finished.
-   */
-  const liveInDb = await db
-    .select({
-      id: matchesTable.id,
-      externalId: matchesTable.externalId,
-      homeTeam: matchesTable.homeTeam,
-      awayTeam: matchesTable.awayTeam,
-      homeScore: matchesTable.homeScore,
-      awayScore: matchesTable.awayScore,
-    })
-    .from(matchesTable)
-    .where(eq(matchesTable.status, "live"));
-
-  for (const match of liveInDb) {
-    if (!match.externalId) continue;
-
-    const individualMatch = await fetchMatchByExternalId(match.externalId);
-    if (!individualMatch) continue;
-
-    const currentScore = pickScore(individualMatch.score);
-    const internalStatus = toInternalStatus(individualMatch.status);
-
-    await db
-      .update(matchesTable)
-      .set({
-        status: internalStatus,
-        homeScore: safeScore(currentScore.home, match.homeScore),
-        awayScore: safeScore(currentScore.away, match.awayScore),
-      })
-      .where(eq(matchesTable.id, match.id));
-
-    updated++;
-
-    logger.info(
-      {
-        id: match.id,
-        externalId: match.externalId,
-        homeTeam: match.homeTeam,
-        awayTeam: match.awayTeam,
-        apiStatus: individualMatch.status,
-        internalStatus,
-      },
-      "Jogo live conferido individualmente"
-    );
-  }
-
-  logger.info(
-    {
-      updated,
-      correctedFromAllSync,
-    },
-    "Live scores synced"
-  );
-
-  return {
-    updated,
-    correctedFromAllSync,
-  };
-}
 
 export default router;
