@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect, useEffect, useMemo } from "react";
+import { useRef, useLayoutEffect, useEffect, useMemo, useState } from "react";
 import {
   useGetRanking,
   getGetRankingQueryKey,
@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { Trophy, Minus } from "lucide-react";
 
-const COLS = "2rem 1fr 2.5rem 2.5rem 2.5rem 5rem";
+const COLS = "2rem 1fr 9.5rem 2.5rem 2.5rem 2.5rem 5rem";
 
 const FLAG: Record<string, string> = {
   Brasil: "🇧🇷",
@@ -28,11 +28,22 @@ const FLAG: Record<string, string> = {
   Colômbia: "🇨🇴",
   México: "🇲🇽",
   EUA: "🇺🇸",
+  USA: "🇺🇸",
   Japão: "🇯🇵",
+  Paraguay: "🇵🇾",
+  Paraguai: "🇵🇾",
 };
 
 function flag(team: string) {
   return FLAG[team] ?? "🏳️";
+}
+
+function teamCode(team: string) {
+  return team
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .slice(0, 3)
+    .toUpperCase();
 }
 
 function PositionBar({
@@ -71,6 +82,50 @@ function PositionBadge({
   return <span className="text-muted-foreground">{position}</span>;
 }
 
+function TodayCube({
+  items,
+}: {
+  items: {
+    label: string;
+    points: number;
+  }[];
+}) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [items.length]);
+
+  useEffect(() => {
+    if (items.length <= 1) return;
+
+    const timer = window.setInterval(() => {
+      setIndex((prev) => (prev + 1) % items.length);
+    }, 2600);
+
+    return () => window.clearInterval(timer);
+  }, [items.length]);
+
+  if (items.length === 0) {
+    return <Minus className="w-3 h-3 mx-auto text-muted-foreground/25" />;
+  }
+
+  const item = items[index];
+
+  return (
+    <div className="flex justify-center [perspective:700px]">
+      <span
+        key={`${item.label}-${item.points}-${index}`}
+        className="inline-flex animate-[cubeFlip_650ms_ease-in-out] items-center justify-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black leading-none whitespace-nowrap [transform-origin:center_center]"
+      >
+        <span className="text-muted-foreground">{item.label}</span>
+        <span className="text-emerald-400">▲</span>
+        <span className="text-emerald-400 tabular-nums">{item.points}</span>
+      </span>
+    </div>
+  );
+}
+
 export default function TabelaPage() {
   const { user } = useAuth();
 
@@ -91,7 +146,7 @@ export default function TabelaPage() {
     }
   );
 
-  useListMatches(
+  const { data: liveMatches } = useListMatches(
     { status: "live" },
     {
       query: {
@@ -102,10 +157,16 @@ export default function TabelaPage() {
   );
 
   const todayStr = new Date().toISOString().slice(0, 10);
+  const hasLiveMatch = (liveMatches ?? []).length > 0;
 
-  const todayMatches = (finishedMatches ?? []).filter(
-    (m) => m.matchDate.slice(0, 10) === todayStr
-  );
+  const todayMatches = useMemo(() => {
+    return [...(finishedMatches ?? [])]
+      .filter((m) => m.matchDate.slice(0, 10) === todayStr)
+      .sort(
+        (a, b) =>
+          new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime()
+      );
+  }, [finishedMatches, todayStr]);
 
   const sortedRanking = useMemo(() => {
     const sorted = [...(ranking ?? [])].sort((a, b) => {
@@ -177,6 +238,27 @@ export default function TabelaPage() {
 
   return (
     <Layout>
+      <style>
+        {`
+          @keyframes cubeFlip {
+            0% {
+              transform: rotateX(-90deg) translateY(8px);
+              opacity: 0;
+            }
+
+            55% {
+              transform: rotateX(12deg) translateY(0);
+              opacity: 1;
+            }
+
+            100% {
+              transform: rotateX(0deg) translateY(0);
+              opacity: 1;
+            }
+          }
+        `}
+      </style>
+
       <div className="p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
@@ -216,11 +298,12 @@ export default function TabelaPage() {
           </div>
         ) : (
           <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-            {todayMatches.length > 0 && (
+            {!hasLiveMatch && todayMatches.length > 0 && (
               <div
                 className="grid items-center px-4 pt-2 pb-0 gap-x-3 bg-muted/20"
                 style={{ gridTemplateColumns: COLS }}
               >
+                <div />
                 <div />
                 <div />
 
@@ -252,6 +335,13 @@ export default function TabelaPage() {
 
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
                 Participante
+              </span>
+
+              <span
+                className="text-xs font-bold text-muted-foreground uppercase tracking-wide text-center"
+                title="Pontuação conquistada hoje"
+              >
+                Hoje
               </span>
 
               <span
@@ -291,6 +381,19 @@ export default function TabelaPage() {
                   entry.totalPredictions -
                   entry.exactScores -
                   entry.correctResults;
+
+                const todayGain =
+                  (entry as { todayGain?: number }).todayGain ?? 0;
+
+                const todayItems =
+                  !hasLiveMatch && todayGain > 0
+                    ? todayMatches.map((match) => ({
+                        label: `(${teamCode(match.homeTeam)} x ${teamCode(
+                          match.awayTeam
+                        )})`,
+                        points: todayGain,
+                      }))
+                    : [];
 
                 return (
                   <div
@@ -340,6 +443,10 @@ export default function TabelaPage() {
                           </span>
                         )}
                       </p>
+                    </div>
+
+                    <div className="text-center">
+                      <TodayCube items={todayItems} />
                     </div>
 
                     <div className="text-center">
@@ -400,6 +507,11 @@ export default function TabelaPage() {
         )}
 
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground/60">
+          <span>
+            <strong className="text-muted-foreground">Hoje</strong> = Pontos
+            conquistados nos jogos encerrados hoje
+          </span>
+
           <span>
             <strong className="text-yellow-400">AC</strong> = Placar exato
           </span>
