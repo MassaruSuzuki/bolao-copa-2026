@@ -36,7 +36,22 @@ type LiveMatch = {
   awayScore?: number | null;
 };
 
-function toLiveShape(entries: RankingEntry[] | undefined) {
+type LiveRankingEntry = {
+  userId: number;
+  name: string;
+  basePoints: number;
+  liveBonus: number;
+  projectedTotal: number;
+  liveMatchId: number | null;
+  predHome: number | null;
+  predAway: number | null;
+  currentHome: number | null;
+  currentAway: number | null;
+  proximity: number | null;
+  hasPrediction: boolean;
+};
+
+function toLiveShape(entries: RankingEntry[] | undefined): LiveRankingEntry[] {
   return (entries ?? []).map((entry) => ({
     userId: entry.userId,
     name: entry.name,
@@ -51,6 +66,19 @@ function toLiveShape(entries: RankingEntry[] | undefined) {
     proximity: null,
     hasPrediction: entry.totalPredictions > 0,
   }));
+}
+
+function sortRanking(entries: LiveRankingEntry[]) {
+  return [...entries].sort((a, b) => {
+    const pointsA = a.projectedTotal ?? a.basePoints ?? 0;
+    const pointsB = b.projectedTotal ?? b.basePoints ?? 0;
+
+    if (pointsB !== pointsA) {
+      return pointsB - pointsA;
+    }
+
+    return a.name.localeCompare(b.name, "pt-BR");
+  });
 }
 
 function ScoreLegend() {
@@ -71,7 +99,7 @@ const LiveMatchCard = memo(
     isFirst,
   }: {
     match: LiveMatch;
-    rankingEntries: ReturnType<typeof toLiveShape>;
+    rankingEntries: LiveRankingEntry[];
     currentUserId?: number;
     isFirst: boolean;
   }) {
@@ -127,9 +155,7 @@ const LiveMatchCard = memo(
                 </span>
               </div>
             ) : (
-              <span className="text-xl font-bold text-muted-foreground">
-                vs
-              </span>
+              <span className="text-xl font-bold text-muted-foreground">vs</span>
             )}
 
             <div className="mt-1 flex items-center justify-center gap-1">
@@ -280,11 +306,11 @@ export default function AoVivoPage() {
   });
 
   const rankingEntries = useMemo(() => {
-    if (hasLiveMatch) {
-      return (liveRanking ?? []) as ReturnType<typeof toLiveShape>;
-    }
+    const entries = hasLiveMatch
+      ? ((liveRanking ?? []) as LiveRankingEntry[])
+      : toLiveShape(baseRanking);
 
-    return toLiveShape(baseRanking);
+    return sortRanking(entries);
   }, [hasLiveMatch, liveRanking, baseRanking]);
 
   const isInitialLoading = loadingMatches && !liveMatches;
