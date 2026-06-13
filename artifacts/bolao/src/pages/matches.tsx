@@ -110,7 +110,9 @@ export default function MatchesPage() {
     });
 
   const predictedMatchIds = useMemo(() => {
-    return new Set((myPredictions ?? []).map((prediction) => prediction.matchId));
+    return new Set(
+      (myPredictions ?? []).map((prediction) => prediction.matchId)
+    );
   }, [myPredictions]);
 
   const matches = useMemo(() => {
@@ -120,10 +122,10 @@ export default function MatchesPage() {
         : rawMatches ?? [];
 
     return baseMatches.filter((match) => {
-  if (match.status === "finished") return true;
+      if (match.status === "finished") return true;
 
-  return !predictedMatchIds.has(match.id);
-});
+      return !predictedMatchIds.has(match.id);
+    });
   }, [filter, rawMatches, predictedMatchIds]);
 
   const filters: { label: string; value: MatchStatus | "all" }[] = [
@@ -183,14 +185,8 @@ export default function MatchesPage() {
                     className="bg-card border border-card-border rounded-2xl p-4 hover:bg-muted/20 active:scale-[0.99] cursor-pointer transition-all"
                     data-testid={`match-card-${m.id}`}
                   >
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-start mb-3">
                       <StatusBadge status={m.status} matchDate={m.matchDate} />
-
-                      <span className="text-[11px] text-muted-foreground tabular-nums">
-                        {format(new Date(m.matchDate), "dd MMM • HH:mm", {
-                          locale: ptBR,
-                        })}
-                      </span>
                     </div>
 
                     <div className="flex items-center justify-between gap-2">
@@ -212,34 +208,62 @@ export default function MatchesPage() {
 
                       <div className="flex-shrink-0 flex flex-col items-center justify-center px-2">
                         {hasScore ? (
-                          <div
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-                            style={{
-                              background: "rgba(255,255,255,0.05)",
-                            }}
-                          >
-                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
-                              {m.homeScore}
-                            </span>
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="text-center">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                {format(new Date(m.matchDate), "dd MMM", {
+                                  locale: ptBR,
+                                })}
+                              </p>
 
-                            <span className="text-base text-muted-foreground/60 font-light">
-                              ×
-                            </span>
+                              <p className="mt-0.5 text-base md:text-lg font-black text-foreground tabular-nums leading-none">
+                                {format(new Date(m.matchDate), "HH:mm")}
+                              </p>
+                            </div>
 
-                            <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
-                              {m.awayScore}
-                            </span>
+                            <div
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+                              style={{
+                                background: "rgba(255,255,255,0.05)",
+                              }}
+                            >
+                              <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
+                                {m.homeScore}
+                              </span>
+
+                              <span className="text-base text-muted-foreground/60 font-light">
+                                ×
+                              </span>
+
+                              <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
+                                {m.awayScore}
+                              </span>
+                            </div>
                           </div>
                         ) : (
-                          <div
-                            className="px-4 py-1.5 rounded-xl"
-                            style={{
-                              background: "rgba(255,255,255,0.04)",
-                            }}
-                          >
-                            <span className="text-sm font-bold text-muted-foreground/60">
-                              VS
-                            </span>
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="text-center">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                {format(new Date(m.matchDate), "dd MMM", {
+                                  locale: ptBR,
+                                })}
+                              </p>
+
+                              <p className="mt-0.5 text-base md:text-lg font-black text-foreground tabular-nums leading-none">
+                                {format(new Date(m.matchDate), "HH:mm")}
+                              </p>
+                            </div>
+
+                            <div
+                              className="px-4 py-1.5 rounded-xl"
+                              style={{
+                                background: "rgba(255,255,255,0.04)",
+                              }}
+                            >
+                              <span className="text-sm font-bold text-muted-foreground/60">
+                                VS
+                              </span>
+                            </div>
                           </div>
                         )}
 
@@ -273,6 +297,7 @@ export default function MatchesPage() {
             {!matches.length && (
               <div className="bg-card border border-card-border rounded-2xl p-12 text-center">
                 <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+
                 <p className="text-muted-foreground">
                   Nenhum jogo disponível para palpite
                 </p>
