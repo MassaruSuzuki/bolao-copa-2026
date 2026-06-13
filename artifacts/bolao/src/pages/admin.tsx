@@ -268,33 +268,49 @@ export default function AdminPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.key.toLowerCase() === "d") {
-        e.preventDefault();
+  let buffer = "";
 
-        setAdminEditMode((prev) => {
-          const next = !prev;
+  const SECRET_CODE = "marquinhos250499";
 
-          if (!next) {
-            setEditingPrediction(null);
-            setPredictionForm({
-              homeGoals: "",
-              awayGoals: "",
-              updatedAt: "",
-            });
-          }
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (!user?.isAdmin) return;
 
-          return next;
-        });
-      }
-    };
+    const ignoredKeys = ["Shift", "Control", "Alt", "Meta", "CapsLock", "Tab"];
 
-    window.addEventListener("keydown", onKeyDown);
+    if (ignoredKeys.includes(e.key)) return;
 
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, []);
+    buffer += e.key.toLowerCase();
+
+    if (buffer.length > SECRET_CODE.length) {
+      buffer = buffer.slice(-SECRET_CODE.length);
+    }
+
+    if (buffer === SECRET_CODE) {
+      buffer = "";
+
+      setAdminEditMode((prev) => {
+        const next = !prev;
+
+        if (!next) {
+          setEditingPrediction(null);
+          setPredictionForm({
+            homeGoals: "",
+            awayGoals: "",
+            updatedAt: "",
+          });
+        }
+
+        return next;
+      });
+    }
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+
+  return () => {
+    window.removeEventListener("keydown", onKeyDown);
+  };
+}, [user?.isAdmin]);
 
   if (!user?.isAdmin) {
     setLocation("/dashboard");

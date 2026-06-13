@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect, useEffect } from "react";
+import { useRef, useLayoutEffect, useEffect, useMemo } from "react";
 import {
   useGetRanking,
   getGetRankingQueryKey,
@@ -107,7 +107,34 @@ export default function TabelaPage() {
     (m) => m.matchDate.slice(0, 10) === todayStr
   );
 
-  const leaderPoints = ranking?.length ? ranking[0].totalPoints : 0;
+  const sortedRanking = useMemo(() => {
+    const sorted = [...(ranking ?? [])].sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) {
+        return b.totalPoints - a.totalPoints;
+      }
+
+      return a.name.localeCompare(b.name, "pt-BR");
+    });
+
+    let lastPoints: number | null = null;
+    let currentPosition = 0;
+
+    return sorted.map((entry) => {
+      if (entry.totalPoints !== lastPoints) {
+        currentPosition += 1;
+        lastPoints = entry.totalPoints;
+      }
+
+      return {
+        ...entry,
+        position: currentPosition,
+      };
+    });
+  }, [ranking]);
+
+  const lastPosition = sortedRanking.length
+    ? sortedRanking[sortedRanking.length - 1].position
+    : 0;
 
   const nodeRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const prevPositions = useRef<Map<number, number>>(new Map());
@@ -136,12 +163,13 @@ export default function TabelaPage() {
         node.style.transition = "none";
         node.style.transform = `translateY(${deltaY}px)`;
         node.getBoundingClientRect();
+
         node.style.transition =
           "transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1)";
         node.style.transform = "translateY(0)";
       }
     });
-  }, [ranking]);
+  }, [sortedRanking]);
 
   useEffect(() => {
     recordPositions();
@@ -176,7 +204,7 @@ export default function TabelaPage() {
               <Skeleton key={i} className="h-14 rounded-xl" />
             ))}
           </div>
-        ) : !ranking?.length ? (
+        ) : sortedRanking.length === 0 ? (
           <div className="bg-card border border-card-border rounded-xl px-5 py-12 text-center">
             <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
 
@@ -253,17 +281,16 @@ export default function TabelaPage() {
             </div>
 
             <div className="relative">
-              {ranking.map((entry, idx) => {
-                const position = idx + 1;
+              {sortedRanking.map((entry) => {
+                const position = entry.position;
                 const isMe = entry.userId === user?.id;
-                const total = ranking.length;
-                const isLeader = entry.totalPoints === leaderPoints;
-                const isLast = position === total && !isLeader;
+                const isLeader = position === 1;
+                const isLast = position === lastPosition && !isLeader;
+
                 const erros =
                   entry.totalPredictions -
                   entry.exactScores -
                   entry.correctResults;
-                const gain = entry.todayGain;
 
                 return (
                   <div
@@ -351,7 +378,7 @@ export default function TabelaPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center justify-center">
                       <span
                         className={cn(
                           "text-base font-black tabular-nums",
@@ -364,12 +391,6 @@ export default function TabelaPage() {
                       >
                         {entry.totalPoints}
                       </span>
-
-                      {gain > 0 && (
-                        <span className="text-xs font-bold text-emerald-400 leading-none tabular-nums">
-                          +{gain}
-                        </span>
-                      )}
                     </div>
                   </div>
                 );
@@ -380,20 +401,20 @@ export default function TabelaPage() {
 
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground/60">
           <span>
-            <strong className="text-yellow-400">AC</strong> = Acertos placar
-            exato
+            <strong className="text-yellow-400">AC</strong> = Placar exato
           </span>
 
           <span>
-            <strong className="text-primary">V</strong> = Vencedor ou empate
+            <strong className="text-primary">V</strong> = Acertou vencedor ou
+            empate
           </span>
 
           <span>
-            <strong className="text-red-400/80">E</strong> = Erros
+            <strong className="text-red-400/80">E</strong> = Errou
           </span>
 
           <span>
-            <strong className="text-foreground">PTS</strong> = Pontos totais
+            <strong className="text-foreground">PTS</strong> = Pontuação total
           </span>
         </div>
       </div>
