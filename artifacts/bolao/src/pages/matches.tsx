@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useListMatches,
   getListMatchesQueryKey,
+  useListMyPredictions,
+  getListMyPredictionsQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
@@ -89,16 +91,36 @@ export default function MatchesPage() {
 
   const apiFilter = filter === "all" ? undefined : { status: filter };
 
-  const { data: rawMatches, isLoading } = useListMatches(apiFilter, {
-    query: {
-      queryKey: getListMatchesQueryKey(apiFilter),
-    },
-  });
+  const { data: rawMatches, isLoading: loadingMatches } = useListMatches(
+    apiFilter,
+    {
+      query: {
+        queryKey: getListMatchesQueryKey(apiFilter),
+        refetchInterval: 10_000,
+      },
+    }
+  );
 
-  const matches =
-    filter === "all"
-      ? rawMatches?.filter((match) => match.status === "upcoming")
-      : rawMatches;
+  const { data: myPredictions, isLoading: loadingPredictions } =
+    useListMyPredictions({
+      query: {
+        queryKey: getListMyPredictionsQueryKey(),
+        refetchInterval: 10_000,
+      },
+    });
+
+  const predictedMatchIds = useMemo(() => {
+    return new Set((myPredictions ?? []).map((prediction) => prediction.matchId));
+  }, [myPredictions]);
+
+  const matches = useMemo(() => {
+    const baseMatches =
+      filter === "all"
+        ? (rawMatches ?? []).filter((match) => match.status === "upcoming")
+        : rawMatches ?? [];
+
+    return baseMatches.filter((match) => !predictedMatchIds.has(match.id));
+  }, [filter, rawMatches, predictedMatchIds]);
 
   const filters: { label: string; value: MatchStatus | "all" }[] = [
     { label: "Todos", value: "all" },
@@ -106,6 +128,8 @@ export default function MatchesPage() {
     { label: "Ao Vivo", value: "live" },
     { label: "Encerrados", value: "finished" },
   ];
+
+  const isLoading = loadingMatches || loadingPredictions;
 
   return (
     <Layout>
@@ -146,7 +170,7 @@ export default function MatchesPage() {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {matches?.map((m) => {
+            {matches.map((m) => {
               const hasScore = m.status === "live" || m.status === "finished";
 
               return (
@@ -242,10 +266,12 @@ export default function MatchesPage() {
               );
             })}
 
-            {!matches?.length && (
+            {!matches.length && (
               <div className="bg-card border border-card-border rounded-2xl p-12 text-center">
                 <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">Nenhum jogo encontrado</p>
+                <p className="text-muted-foreground">
+                  Nenhum jogo disponível para palpite
+                </p>
               </div>
             )}
           </div>
