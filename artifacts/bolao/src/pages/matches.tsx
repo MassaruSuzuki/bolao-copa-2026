@@ -119,7 +119,11 @@ export default function MatchesPage() {
         ? (rawMatches ?? []).filter((match) => match.status === "upcoming")
         : rawMatches ?? [];
 
-    return baseMatches.filter((match) => !predictedMatchIds.has(match.id));
+    return baseMatches.filter((match) => {
+  if (match.status === "finished") return true;
+
+  return !predictedMatchIds.has(match.id);
+});
   }, [filter, rawMatches, predictedMatchIds]);
 
   const filters: { label: string; value: MatchStatus | "all" }[] = [
