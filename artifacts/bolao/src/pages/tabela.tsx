@@ -79,6 +79,9 @@ function PositionBadge({
     return <span className="text-lg leading-none">👑</span>;
   }
 
+  if (position === 2) return <span className="text-lg leading-none">🥈</span>;
+  if (position === 3) return <span className="text-lg leading-none">🥉</span>;
+
   return <span className="text-muted-foreground">{position}</span>;
 }
 
@@ -259,7 +262,7 @@ export default function TabelaPage() {
         `}
       </style>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             Tabela do Bolão
@@ -283,7 +286,7 @@ export default function TabelaPage() {
         {isLoading ? (
           <div className="space-y-1">
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded-xl" />
+              <Skeleton key={i} className="h-24 md:h-14 rounded-xl" />
             ))}
           </div>
         ) : sortedRanking.length === 0 ? (
@@ -297,80 +300,218 @@ export default function TabelaPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-            {!hasLiveMatch && todayMatches.length > 0 && (
+          <>
+            <div className="hidden md:block bg-card border border-card-border rounded-xl overflow-hidden">
+              {!hasLiveMatch && todayMatches.length > 0 && (
+                <div
+                  className="grid items-center px-4 pt-2 pb-0 gap-x-3 bg-muted/20"
+                  style={{ gridTemplateColumns: COLS }}
+                >
+                  <div />
+                  <div />
+                  <div />
+
+                  <div className="col-span-4 flex items-center justify-center gap-3 pb-1 border-b border-border/40">
+                    {todayMatches.map((m) => (
+                      <span
+                        key={m.id}
+                        className="flex items-center gap-1 text-sm leading-none"
+                        title={`${m.homeTeam} × ${m.awayTeam}`}
+                      >
+                        <span>{flag(m.homeTeam)}</span>
+                        <span className="text-muted-foreground/50 text-xs font-bold">
+                          ×
+                        </span>
+                        <span>{flag(m.awayTeam)}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div
-                className="grid items-center px-4 pt-2 pb-0 gap-x-3 bg-muted/20"
+                className="grid items-center border-b border-border px-4 py-2.5 bg-muted/30 gap-x-3"
                 style={{ gridTemplateColumns: COLS }}
               >
-                <div />
-                <div />
-                <div />
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide text-center">
+                  #
+                </span>
 
-                <div className="col-span-4 flex items-center justify-center gap-3 pb-1 border-b border-border/40">
-                  {todayMatches.map((m) => (
-                    <span
-                      key={m.id}
-                      className="flex items-center gap-1 text-sm leading-none"
-                      title={`${m.homeTeam} × ${m.awayTeam}`}
-                    >
-                      <span>{flag(m.homeTeam)}</span>
-                      <span className="text-muted-foreground/50 text-xs font-bold">
-                        ×
-                      </span>
-                      <span>{flag(m.awayTeam)}</span>
-                    </span>
-                  ))}
-                </div>
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                  Participante
+                </span>
+
+                <span
+                  className="text-xs font-bold text-muted-foreground uppercase tracking-wide text-center"
+                  title="Pontuação conquistada hoje"
+                >
+                  Hoje
+                </span>
+
+                <span
+                  className="text-xs font-bold text-yellow-400 uppercase tracking-wide text-center"
+                  title="Placar exato"
+                >
+                  AC
+                </span>
+
+                <span
+                  className="text-xs font-bold text-primary uppercase tracking-wide text-center"
+                  title="Vencedor ou empate"
+                >
+                  V
+                </span>
+
+                <span
+                  className="text-xs font-bold text-red-400/80 uppercase tracking-wide text-center"
+                  title="Errou"
+                >
+                  E
+                </span>
+
+                <span className="text-xs font-bold text-foreground uppercase tracking-wide text-center">
+                  PTS
+                </span>
               </div>
-            )}
 
-            <div
-              className="grid items-center border-b border-border px-4 py-2.5 bg-muted/30 gap-x-3"
-              style={{ gridTemplateColumns: COLS }}
-            >
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide text-center">
-                #
-              </span>
+              <div className="relative">
+                {sortedRanking.map((entry) => {
+                  const position = entry.position;
+                  const isMe = entry.userId === user?.id;
+                  const isLeader = position === 1;
+                  const isLast = position === lastPosition && !isLeader;
 
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
-                Participante
-              </span>
+                  const erros =
+                    entry.totalPredictions -
+                    entry.exactScores -
+                    entry.correctResults;
 
-              <span
-                className="text-xs font-bold text-muted-foreground uppercase tracking-wide text-center"
-                title="Pontuação conquistada hoje"
-              >
-                Hoje
-              </span>
+                  const todayGain =
+                    (entry as { todayGain?: number }).todayGain ?? 0;
 
-              <span
-                className="text-xs font-bold text-yellow-400 uppercase tracking-wide text-center"
-                title="Placar exato"
-              >
-                AC
-              </span>
+                  const todayItems =
+                    !hasLiveMatch && todayGain > 0
+                      ? todayMatches.map((match) => ({
+                          label: `(${teamCode(match.homeTeam)} x ${teamCode(
+                            match.awayTeam
+                          )})`,
+                          points: todayGain,
+                        }))
+                      : [];
 
-              <span
-                className="text-xs font-bold text-primary uppercase tracking-wide text-center"
-                title="Vencedor ou empate"
-              >
-                V
-              </span>
+                  return (
+                    <div
+                      key={entry.userId}
+                      ref={(el) => {
+                        if (el) {
+                          nodeRefs.current.set(entry.userId, el);
+                        } else {
+                          nodeRefs.current.delete(entry.userId);
+                        }
+                      }}
+                      className={cn(
+                        "relative grid items-center px-4 py-3 border-b border-border last:border-0 will-change-transform gap-x-3",
+                        isLeader && "bg-yellow-500/5",
+                        isMe ? "bg-primary/5" : "hover:bg-white/[0.02]"
+                      )}
+                      style={{ gridTemplateColumns: COLS }}
+                    >
+                      <PositionBar isLeader={isLeader} isLast={isLast} />
 
-              <span
-                className="text-xs font-bold text-red-400/80 uppercase tracking-wide text-center"
-                title="Errou"
-              >
-                E
-              </span>
+                      <div className="text-sm font-semibold text-center tabular-nums">
+                        <PositionBadge position={position} isLeader={isLeader} />
+                      </div>
 
-              <span className="text-xs font-bold text-foreground uppercase tracking-wide text-center">
-                PTS
-              </span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <UserAvatar
+                          name={entry.name}
+                          avatarUrl={
+                            (entry as { avatarUrl?: string | null }).avatarUrl
+                          }
+                          size={7}
+                          textSize="xs"
+                        />
+
+                        <p
+                          className={cn(
+                            "text-sm font-semibold truncate",
+                            isLeader && "text-yellow-400",
+                            isMe && !isLeader
+                              ? "text-primary"
+                              : "text-foreground"
+                          )}
+                        >
+                          {entry.name}
+
+                          {isMe && (
+                            <span className="text-xs ml-1.5 text-primary/60 font-normal">
+                              (você)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="text-center">
+                        <TodayCube items={todayItems} />
+                      </div>
+
+                      <div className="text-center">
+                        <span
+                          className={cn(
+                            "text-sm font-semibold tabular-nums",
+                            entry.exactScores > 0
+                              ? "text-yellow-400"
+                              : "text-muted-foreground/50"
+                          )}
+                        >
+                          {entry.exactScores}
+                        </span>
+                      </div>
+
+                      <div className="text-center">
+                        <span
+                          className={cn(
+                            "text-sm font-semibold tabular-nums",
+                            entry.correctResults > 0
+                              ? "text-primary"
+                              : "text-muted-foreground/50"
+                          )}
+                        >
+                          {entry.correctResults}
+                        </span>
+                      </div>
+
+                      <div className="text-center">
+                        {erros > 0 ? (
+                          <span className="text-sm tabular-nums text-red-400/80">
+                            {erros}
+                          </span>
+                        ) : (
+                          <Minus className="w-3 h-3 mx-auto text-muted-foreground/30" />
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-center">
+                        <span
+                          className={cn(
+                            "text-base font-black tabular-nums",
+                            isLeader
+                              ? "text-yellow-400"
+                              : isMe
+                                ? "text-primary"
+                                : "text-foreground"
+                          )}
+                        >
+                          {entry.totalPoints}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="relative">
+            <div className="md:hidden space-y-3">
               {sortedRanking.map((entry) => {
                 const position = entry.position;
                 const isMe = entry.userId === user?.id;
@@ -398,112 +539,151 @@ export default function TabelaPage() {
                 return (
                   <div
                     key={entry.userId}
-                    ref={(el) => {
-                      if (el) {
-                        nodeRefs.current.set(entry.userId, el);
-                      } else {
-                        nodeRefs.current.delete(entry.userId);
-                      }
-                    }}
                     className={cn(
-                      "relative grid items-center px-4 py-3 border-b border-border last:border-0 will-change-transform gap-x-3",
-                      isLeader && "bg-yellow-500/5",
-                      isMe ? "bg-primary/5" : "hover:bg-white/[0.02]"
+                      "relative overflow-hidden rounded-2xl border bg-card p-4",
+                      isLeader
+                        ? "border-yellow-500/35 bg-yellow-500/5"
+                        : isLast
+                          ? "border-red-500/25"
+                          : "border-card-border",
+                      isMe && !isLeader && "border-primary/30 bg-primary/5"
                     )}
-                    style={{ gridTemplateColumns: COLS }}
                   >
                     <PositionBar isLeader={isLeader} isLast={isLast} />
 
-                    <div className="text-sm font-semibold text-center tabular-nums">
-                      <PositionBadge position={position} isLeader={isLeader} />
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-black">
+                          <PositionBadge
+                            position={position}
+                            isLeader={isLeader}
+                          />
+                        </div>
+
+                        <UserAvatar
+                          name={entry.name}
+                          avatarUrl={
+                            (entry as { avatarUrl?: string | null }).avatarUrl
+                          }
+                          size={9}
+                          textSize="sm"
+                        />
+
+                        <div className="min-w-0">
+                          <p
+                            className={cn(
+                              "truncate text-sm font-black",
+                              isLeader && "text-yellow-400",
+                              isMe && !isLeader
+                                ? "text-primary"
+                                : "text-foreground"
+                            )}
+                          >
+                            {entry.name}
+                            {isMe && (
+                              <span className="ml-1 text-xs font-normal text-primary/70">
+                                (você)
+                              </span>
+                            )}
+                          </p>
+
+                          <p className="text-xs text-muted-foreground">
+                            {isLeader
+                              ? "Líder do Bolão"
+                              : isLast
+                                ? "Lanterna"
+                                : `${position}º colocado`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <p
+                          className={cn(
+                            "text-2xl font-black tabular-nums leading-none",
+                            isLeader
+                              ? "text-yellow-400"
+                              : isMe
+                                ? "text-primary"
+                                : "text-foreground"
+                          )}
+                        >
+                          {entry.totalPoints}
+                        </p>
+                        <p className="mt-1 text-[10px] font-bold uppercase text-muted-foreground">
+                          pts
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-3 min-w-0">
-                      <UserAvatar
-                        name={entry.name}
-                        avatarUrl={
-                          (entry as { avatarUrl?: string | null }).avatarUrl
-                        }
-                        size={7}
-                        textSize="xs"
-                      />
-
-                      <p
-                        className={cn(
-                          "text-sm font-semibold truncate",
-                          isLeader && "text-yellow-400",
-                          isMe && !isLeader ? "text-primary" : "text-foreground"
-                        )}
-                      >
-                        {entry.name}
-
-                        {isMe && (
-                          <span className="text-xs ml-1.5 text-primary/60 font-normal">
-                            (você)
-                          </span>
-                        )}
-                      </p>
-                    </div>
-
-                    <div className="text-center">
-                      <TodayCube items={todayItems} />
-                    </div>
-
-                    <div className="text-center">
-                      <span
-                        className={cn(
-                          "text-sm font-semibold tabular-nums",
-                          entry.exactScores > 0
-                            ? "text-yellow-400"
-                            : "text-muted-foreground/50"
-                        )}
-                      >
-                        {entry.exactScores}
-                      </span>
-                    </div>
-
-                    <div className="text-center">
-                      <span
-                        className={cn(
-                          "text-sm font-semibold tabular-nums",
-                          entry.correctResults > 0
-                            ? "text-primary"
-                            : "text-muted-foreground/50"
-                        )}
-                      >
-                        {entry.correctResults}
-                      </span>
-                    </div>
-
-                    <div className="text-center">
-                      {erros > 0 ? (
-                        <span className="text-sm tabular-nums text-red-400/80">
-                          {erros}
+                    <div className="mt-4 rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase text-muted-foreground">
+                          Hoje
                         </span>
-                      ) : (
-                        <Minus className="w-3 h-3 mx-auto text-muted-foreground/30" />
-                      )}
-                    </div>
 
-                    <div className="flex items-center justify-center">
-                      <span
-                        className={cn(
-                          "text-base font-black tabular-nums",
-                          isLeader
-                            ? "text-yellow-400"
-                            : isMe
-                              ? "text-primary"
-                              : "text-foreground"
-                        )}
-                      >
-                        {entry.totalPoints}
-                      </span>
+                        <TodayCube items={todayItems} />
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div className="rounded-lg bg-background/50 px-2 py-2">
+                          <p className="text-[10px] font-bold uppercase text-yellow-400">
+                            AC
+                          </p>
+                          <p className="mt-1 text-base font-black tabular-nums text-yellow-400">
+                            {entry.exactScores}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg bg-background/50 px-2 py-2">
+                          <p className="text-[10px] font-bold uppercase text-primary">
+                            V
+                          </p>
+                          <p className="mt-1 text-base font-black tabular-nums text-primary">
+                            {entry.correctResults}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg bg-background/50 px-2 py-2">
+                          <p className="text-[10px] font-bold uppercase text-red-400/80">
+                            E
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 text-base font-black tabular-nums",
+                              erros > 0
+                                ? "text-red-400/80"
+                                : "text-muted-foreground/40"
+                            )}
+                          >
+                            {erros}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg bg-background/50 px-2 py-2">
+                          <p className="text-[10px] font-bold uppercase text-foreground">
+                            PTS
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 text-base font-black tabular-nums",
+                              isLeader
+                                ? "text-yellow-400"
+                                : isMe
+                                  ? "text-primary"
+                                  : "text-foreground"
+                            )}
+                          >
+                            {entry.totalPoints}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </>
         )}
 
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground/60">
