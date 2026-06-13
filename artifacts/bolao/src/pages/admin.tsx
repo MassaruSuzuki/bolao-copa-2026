@@ -45,6 +45,7 @@ import {
   FileText,
   ChevronDown,
   LockOpen,
+  Lock,
 } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
@@ -221,10 +222,6 @@ export default function AdminPage() {
     return "participantes";
   });
 
-  useEffect(() => {
-    localStorage.setItem("admin_tab", activeTab);
-  }, [activeTab]);
-
   const [showCreate, setShowCreate] = useState(false);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -233,13 +230,18 @@ export default function AdminPage() {
   const [processingUnlock, setProcessingUnlock] = useState<number | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
 
+  const [adminEditMode, setAdminEditMode] = useState(false);
+  const [editingPrediction, setEditingPrediction] = useState<number | null>(null);
+  const [savingPrediction, setSavingPrediction] = useState<number | null>(null);
+  const [predictionForm, setPredictionForm] = useState({
+    homeGoals: "",
+    awayGoals: "",
+    updatedAt: "",
+  });
+
   const { data: participants, isLoading: loadingUsers } = useAdminUsers();
   const { data: predictions, isLoading: loadingPredictions } =
     useAdminPredictions();
-
-  const pendingCount = (participants ?? []).filter(
-    (u) => u.status === "pending"
-  ).length;
 
   const [newMatch, setNewMatch] = useState({
     homeTeam: "",
@@ -261,10 +263,47 @@ export default function AdminPage() {
   const createMutation = useCreateMatch();
   const updateMutation = useUpdateMatch();
 
+  useEffect(() => {
+    localStorage.setItem("admin_tab", activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+
+        setAdminEditMode((prev) => {
+          const next = !prev;
+
+          if (!next) {
+            setEditingPrediction(null);
+            setPredictionForm({
+              homeGoals: "",
+              awayGoals: "",
+              updatedAt: "",
+            });
+          }
+
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
   if (!user?.isAdmin) {
     setLocation("/dashboard");
     return null;
   }
+
+  const pendingCount = (participants ?? []).filter(
+    (u) => u.status === "pending"
+  ).length;
 
   const toggleUserPredictions = (userId: number) => {
     setExpandedUsers((prev) =>
@@ -399,52 +438,6 @@ export default function AdminPage() {
           },
         }
       );
-      
-       const handleLockPredictions = async (matchId: number) => {
-  const confirmLock = window.confirm(
-    "Deseja travar novamente os palpites desta partida?"
-  );
-
-  if (!confirmLock) return;
-
-  setProcessingUnlock(matchId);
-
-  try {
-    const token = localStorage.getItem("bolao_token");
-
-    const res = await fetch(`/api/admin/matches/${matchId}/prediction-lock`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const data = (await res.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-
-    if (!res.ok) {
-      throw new Error(data?.error ?? "Erro ao travar palpites");
-    }
-
-    toast({
-      title: "Palpites travados!",
-      description: "A liberação foi removida desta partida.",
-    });
-
-    qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-  } catch (err) {
-    toast({
-      title: "Erro",
-      description:
-        err instanceof Error ? err.message : "Erro ao travar palpites",
-      variant: "destructive",
-    });
-  } finally {
-    setProcessingUnlock(null);
-  }
-}; 
-
 
       const data = (await res.json().catch(() => null)) as {
         error?: string;
@@ -473,50 +466,118 @@ export default function AdminPage() {
   };
 
   const handleLockPredictions = async (matchId: number) => {
-  const confirmLock = window.confirm(
-    "Deseja travar novamente os palpites desta partida?"
-  );
+    const confirmLock = window.confirm(
+      "Deseja travar novamente os palpites desta partida?"
+    );
 
-  if (!confirmLock) return;
+    if (!confirmLock) return;
 
-  setProcessingUnlock(matchId);
+    setProcessingUnlock(matchId);
 
-  try {
-    const token = localStorage.getItem("bolao_token");
+    try {
+      const token = localStorage.getItem("bolao_token");
 
-    const res = await fetch(`/api/admin/matches/${matchId}/prediction-lock`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+      const res = await fetch(`/api/admin/matches/${matchId}/prediction-lock`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    const data = (await res.json().catch(() => null)) as {
-      error?: string;
-    } | null;
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
 
-    if (!res.ok) {
-      throw new Error(data?.error ?? "Erro ao travar palpites");
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Erro ao travar palpites");
+      }
+
+      toast({
+        title: "Palpites travados!",
+        description: "A liberação foi removida desta partida.",
+      });
+
+      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description:
+          err instanceof Error ? err.message : "Erro ao travar palpites",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingUnlock(null);
+    }
+  };
+
+  const handleSavePrediction = async (predictionId: number) => {
+    const homeGoals = Number(predictionForm.homeGoals);
+    const awayGoals = Number(predictionForm.awayGoals);
+
+    if (
+      predictionForm.homeGoals === "" ||
+      predictionForm.awayGoals === "" ||
+      Number.isNaN(homeGoals) ||
+      Number.isNaN(awayGoals) ||
+      homeGoals < 0 ||
+      awayGoals < 0
+    ) {
+      toast({
+        title: "Placar inválido",
+        description: "Digite gols válidos para os dois times.",
+        variant: "destructive",
+      });
+      return;
     }
 
-    toast({
-      title: "Palpites travados!",
-      description: "A liberação foi removida desta partida.",
-    });
+    setSavingPrediction(predictionId);
 
-    qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-  } catch (err) {
-    toast({
-      title: "Erro",
-      description:
-        err instanceof Error ? err.message : "Erro ao travar palpites",
-      variant: "destructive",
-    });
-  } finally {
-    setProcessingUnlock(null);
-  }
-};
+    try {
+      const token = localStorage.getItem("bolao_token");
 
+      const res = await fetch(`/api/admin/predictions/${predictionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          homeGoals,
+          awayGoals,
+          updatedAt: predictionForm.updatedAt
+            ? new Date(predictionForm.updatedAt).toISOString()
+            : undefined,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Erro ao atualizar palpite");
+      }
+
+      toast({
+        title: "Palpite atualizado!",
+        description: "A alteração foi salva com sucesso.",
+      });
+
+      setEditingPrediction(null);
+      setPredictionForm({ homeGoals: "", awayGoals: "", updatedAt: "" });
+
+      qc.invalidateQueries({ queryKey: ["admin-predictions"] });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description:
+          err instanceof Error ? err.message : "Erro ao atualizar palpite",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPrediction(null);
+    }
+  };
 
   const handleApprove = async (userId: number) => {
     setProcessingUser(userId);
@@ -636,8 +697,12 @@ export default function AdminPage() {
         },
       });
 
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
       if (!res.ok) {
-        throw new Error("Erro ao excluir jogo");
+        throw new Error(data?.error ?? "Erro ao excluir jogo");
       }
 
       toast({ title: "Jogo excluído com sucesso!" });
@@ -782,18 +847,20 @@ export default function AdminPage() {
           )}
 
           {activeTab === "palpites" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => {
-                qc.invalidateQueries({ queryKey: ["admin-users"] });
-                qc.invalidateQueries({ queryKey: ["admin-predictions"] });
-              }}
-            >
-              <RefreshCw className="w-4 h-4" />
-              Atualizar
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  qc.invalidateQueries({ queryKey: ["admin-users"] });
+                  qc.invalidateQueries({ queryKey: ["admin-predictions"] });
+                }}
+              >
+                <RefreshCw className="w-4 h-4" />
+                Atualizar
+              </Button>
+            </div>
           )}
 
           {activeTab === "jogos" && (
@@ -1089,72 +1156,187 @@ export default function AdminPage() {
                             Este participante ainda não fez nenhum palpite.
                           </div>
                         ) : (
-                          group.predictions.map((p) => (
-                            <div
-                              key={p.id}
-                              className="px-4 py-3 flex items-center justify-between gap-4"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 text-sm flex-wrap">
-                                  {p.homeLogo && (
-                                    <img
-                                      src={p.homeLogo}
-                                      alt={p.homeTeam}
-                                      className="w-5 h-5 object-contain"
-                                    />
+                          group.predictions.map((p) => {
+                            const isEditing = editingPrediction === p.id;
+
+                            return (
+                              <div
+                                key={p.id}
+                                className="px-4 py-3 flex items-center justify-between gap-4"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 text-sm flex-wrap">
+                                    {p.homeLogo && (
+                                      <img
+                                        src={p.homeLogo}
+                                        alt={p.homeTeam}
+                                        className="w-5 h-5 object-contain"
+                                      />
+                                    )}
+
+                                    <span className="font-medium text-foreground">
+                                      {p.homeTeam}
+                                    </span>
+
+                                    {!isEditing && (
+                                      <span className="font-bold text-primary">
+                                        {p.homeGoals} × {p.awayGoals}
+                                      </span>
+                                    )}
+
+                                    {isEditing && (
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          className="w-16 h-8 text-center"
+                                          value={predictionForm.homeGoals}
+                                          onChange={(e) =>
+                                            setPredictionForm((prev) => ({
+                                              ...prev,
+                                              homeGoals: e.target.value,
+                                            }))
+                                          }
+                                        />
+
+                                        <span className="font-bold text-muted-foreground">
+                                          ×
+                                        </span>
+
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          className="w-16 h-8 text-center"
+                                          value={predictionForm.awayGoals}
+                                          onChange={(e) =>
+                                            setPredictionForm((prev) => ({
+                                              ...prev,
+                                              awayGoals: e.target.value,
+                                            }))
+                                          }
+                                        />
+                                      </div>
+                                    )}
+
+                                    <span className="font-medium text-foreground">
+                                      {p.awayTeam}
+                                    </span>
+
+                                    {p.awayLogo && (
+                                      <img
+                                        src={p.awayLogo}
+                                        alt={p.awayTeam}
+                                        className="w-5 h-5 object-contain"
+                                      />
+                                    )}
+                                  </div>
+
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Jogo:{" "}
+                                    {format(
+                                      new Date(p.matchDate),
+                                      "dd/MM HH:mm",
+                                      {
+                                        locale: ptBR,
+                                      }
+                                    )}
+                                  </p>
+
+                                  {isEditing && (
+                                    <div className="mt-2 max-w-xs space-y-1.5">
+                                      <Label className="text-xs text-muted-foreground">
+                                        Data/hora da atualização
+                                      </Label>
+
+                                      <Input
+                                        type="datetime-local"
+                                        value={predictionForm.updatedAt}
+                                        onChange={(e) =>
+                                          setPredictionForm((prev) => ({
+                                            ...prev,
+                                            updatedAt: e.target.value,
+                                          }))
+                                        }
+                                      />
+                                    </div>
                                   )}
 
-                                  <span className="font-medium text-foreground">
-                                    {p.homeTeam}
-                                  </span>
+                                  {adminEditMode && (
+                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                      {isEditing ? (
+                                        <>
+                                          <Button
+                                            size="sm"
+                                            onClick={() =>
+                                              handleSavePrediction(p.id)
+                                            }
+                                            disabled={savingPrediction === p.id}
+                                          >
+                                            {savingPrediction === p.id
+                                              ? "Salvando..."
+                                              : "Salvar"}
+                                          </Button>
 
-                                  <span className="font-bold text-primary">
-                                    {p.homeGoals} × {p.awayGoals}
-                                  </span>
-
-                                  <span className="font-medium text-foreground">
-                                    {p.awayTeam}
-                                  </span>
-
-                                  {p.awayLogo && (
-                                    <img
-                                      src={p.awayLogo}
-                                      alt={p.awayTeam}
-                                      className="w-5 h-5 object-contain"
-                                    />
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              setEditingPrediction(null);
+                                              setPredictionForm({
+                                                homeGoals: "",
+                                                awayGoals: "",
+                                                updatedAt: "",
+                                              });
+                                            }}
+                                            disabled={savingPrediction === p.id}
+                                          >
+                                            Cancelar
+                                          </Button>
+                                        </>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="gap-1.5 h-8"
+                                          onClick={() => {
+                                            setEditingPrediction(p.id);
+                                            setPredictionForm({
+                                              homeGoals: String(p.homeGoals),
+                                              awayGoals: String(p.awayGoals),
+                                              updatedAt: format(
+                                                new Date(p.updatedAt),
+                                                "yyyy-MM-dd'T'HH:mm"
+                                              ),
+                                            });
+                                          }}
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                          Editar palpite
+                                        </Button>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
 
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Jogo:{" "}
-                                  {format(
-                                    new Date(p.matchDate),
-                                    "dd/MM HH:mm",
-                                    {
-                                      locale: ptBR,
-                                    }
-                                  )}
-                                </p>
-                              </div>
+                                <div className="text-right flex-shrink-0">
+                                  <Badge variant="secondary" className="mb-1">
+                                    {predictionStatusLabel(p.status)}
+                                  </Badge>
 
-                              <div className="text-right flex-shrink-0">
-                                <Badge variant="secondary" className="mb-1">
-                                  {predictionStatusLabel(p.status)}
-                                </Badge>
-
-                                <p className="text-xs text-muted-foreground">
-                                  Palpite feito em{" "}
-                                  {format(
-                                    new Date(p.createdAt),
-                                    "dd/MM HH:mm",
-                                    {
-                                      locale: ptBR,
-                                    }
-                                  )}
-                                </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Palpite feito em{" "}
+                                    {format(
+                                      new Date(p.createdAt),
+                                      "dd/MM HH:mm",
+                                      {
+                                        locale: ptBR,
+                                      }
+                                    )}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     )}
@@ -1239,22 +1421,25 @@ export default function AdminPage() {
                       )}
 
                       {m.predictionUnlocked && (
-  <>
-    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-      Palpites Liberados
-    </Badge>
+                        <>
+                          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                            Palpites Liberados
+                          </Badge>
 
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-1.5 h-8 border-red-500/30 text-red-400 hover:bg-red-500/10"
-      onClick={() => handleLockPredictions(m.id)}
-      disabled={processingUnlock === m.id}
-    >
-      Travar Palpites
-    </Button>
-  </>
-)}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 h-8 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                            onClick={() => handleLockPredictions(m.id)}
+                            disabled={processingUnlock === m.id}
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            {processingUnlock === m.id
+                              ? "Travando..."
+                              : "Travar Palpites"}
+                          </Button>
+                        </>
+                      )}
 
                       {m.status === "upcoming" && !m.predictionUnlocked && (
                         <Button

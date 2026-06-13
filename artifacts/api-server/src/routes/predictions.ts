@@ -67,6 +67,66 @@ router.get(
   }
 );
 
+router.patch(
+  "/admin/predictions/:id",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const predictionId = Number(req.params.id);
+
+    if (Number.isNaN(predictionId)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const parsed = UpsertPredictionBody.omit({ matchId: true }).safeParse(
+      req.body
+    );
+
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const { homeGoals, awayGoals } = parsed.data;
+
+    let updatedAt: Date | undefined;
+
+    if (req.body.updatedAt) {
+      const parsedUpdatedAt = new Date(req.body.updatedAt);
+
+      if (Number.isNaN(parsedUpdatedAt.getTime())) {
+        res.status(400).json({ error: "Data de atualização inválida" });
+        return;
+      }
+
+      updatedAt = parsedUpdatedAt;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(predictionsTable)
+      .where(eq(predictionsTable.id, predictionId));
+
+    if (!existing) {
+      res.status(404).json({ error: "Palpite não encontrado" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(predictionsTable)
+      .set({
+        homeGoals,
+        awayGoals,
+        ...(updatedAt ? { updatedAt } : {}),
+      })
+      .where(eq(predictionsTable.id, predictionId))
+      .returning();
+
+    res.json(toIsoPrediction(updated));
+  }
+);
+
 router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
   const parsed = UpsertPredictionBody.safeParse(req.body);
 
@@ -107,7 +167,7 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [existing] = await db
+  const [existingPrediction] = await db
     .select()
     .from(predictionsTable)
     .where(
@@ -117,7 +177,7 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
       )
     );
 
-  if (existing) {
+  if (existingPrediction) {
     res.status(409).json({
       error: "Você já tem um palpite para este jogo.",
     });
@@ -150,7 +210,7 @@ router.delete(
 
     const userId = req.user!.userId;
 
-    const [existing] = await db
+    const [existingPrediction] = await db
       .select({
         id: predictionsTable.id,
         userId: predictionsTable.userId,
@@ -164,7 +224,7 @@ router.delete(
         )
       );
 
-    if (!existing) {
+    if (!existingPrediction) {
       res.status(404).json({ error: "Palpite não encontrado" });
       return;
     }
@@ -172,7 +232,7 @@ router.delete(
     const [match] = await db
       .select()
       .from(matchesTable)
-      .where(eq(matchesTable.id, existing.matchId));
+      .where(eq(matchesTable.id, existingPrediction.matchId));
 
     if (!match) {
       res.status(404).json({ error: "Jogo não encontrado" });
