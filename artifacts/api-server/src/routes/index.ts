@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+
 import healthRouter from "./health";
 import authRouter from "./auth";
 import matchesRouter from "./matches";
@@ -8,6 +9,7 @@ import dashboardRouter from "./dashboard";
 import syncRouter from "./sync";
 import adminUsersRouter from "./adminUsers";
 import storageRouter from "./storage";
+import noticesRouter from "./notices";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,6 @@ router.use(dashboardRouter);
 router.use(syncRouter);
 router.use(adminUsersRouter);
 router.use(storageRouter);
+router.use(noticesRouter);
 
 export default router;

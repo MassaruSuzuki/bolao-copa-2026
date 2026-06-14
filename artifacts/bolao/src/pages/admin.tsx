@@ -1342,12 +1342,12 @@ export default function AdminPage() {
                                   <p className="text-xs text-muted-foreground">
                                     Palpite feito em{" "}
                                     {format(
-                                      new Date(p.createdAt),
-                                      "dd/MM HH:mm",
-                                      {
-                                        locale: ptBR,
-                                      }
-                                    )}
+  new Date(p.updatedAt),
+  "dd/MM HH:mm",
+  {
+    locale: ptBR,
+  }
+)}
                                   </p>
                                 </div>
                               </div>

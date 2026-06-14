@@ -151,6 +151,11 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
     if (hasLiveMatch) {
       pollRef.current = setInterval(() => {
         qc.invalidateQueries({ queryKey: getGetDashboardQueryKey() });
@@ -159,7 +164,10 @@ export default function DashboardPage() {
     }
 
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
     };
   }, [hasLiveMatch, qc]);
 
