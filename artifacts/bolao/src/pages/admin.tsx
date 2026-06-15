@@ -230,8 +230,16 @@ export default function AdminPage() {
   const [processingUnlock, setProcessingUnlock] = useState<number | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
 
+  const [privateUnlockMatchByUser, setPrivateUnlockMatchByUser] = useState<
+    Record<number, string>
+  >({});
+  const [processingPrivateUnlock, setProcessingPrivateUnlock] =
+    useState<number | null>(null);
+
   const [adminEditMode, setAdminEditMode] = useState(false);
-  const [editingPrediction, setEditingPrediction] = useState<number | null>(null);
+  const [editingPrediction, setEditingPrediction] = useState<number | null>(
+    null
+  );
   const [savingPrediction, setSavingPrediction] = useState<number | null>(null);
   const [predictionForm, setPredictionForm] = useState({
     homeGoals: "",
@@ -263,54 +271,68 @@ export default function AdminPage() {
   const createMutation = useCreateMatch();
   const updateMutation = useUpdateMatch();
 
+  const adminMatches = ((matches as AdminMatch[] | undefined) ?? []).sort(
+    (a, b) =>
+      new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
+  );
+
+  const upcomingMatches = adminMatches.filter((m) => m.status === "upcoming");
+
   useEffect(() => {
     localStorage.setItem("admin_tab", activeTab);
   }, [activeTab]);
 
   useEffect(() => {
-  let buffer = "";
+    let buffer = "";
 
-  const SECRET_CODE = "marquinhos250499";
+    const SECRET_CODE = "marquinhos250499";
 
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (!user?.isAdmin) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!user?.isAdmin) return;
 
-    const ignoredKeys = ["Shift", "Control", "Alt", "Meta", "CapsLock", "Tab"];
+      const ignoredKeys = [
+        "Shift",
+        "Control",
+        "Alt",
+        "Meta",
+        "CapsLock",
+        "Tab",
+      ];
 
-    if (ignoredKeys.includes(e.key)) return;
+      if (ignoredKeys.includes(e.key)) return;
 
-    buffer += e.key.toLowerCase();
+      buffer += e.key.toLowerCase();
 
-    if (buffer.length > SECRET_CODE.length) {
-      buffer = buffer.slice(-SECRET_CODE.length);
-    }
+      if (buffer.length > SECRET_CODE.length) {
+        buffer = buffer.slice(-SECRET_CODE.length);
+      }
 
-    if (buffer === SECRET_CODE) {
-      buffer = "";
+      if (buffer === SECRET_CODE) {
+        buffer = "";
 
-      setAdminEditMode((prev) => {
-        const next = !prev;
+        setAdminEditMode((prev) => {
+          const next = !prev;
 
-        if (!next) {
-          setEditingPrediction(null);
-          setPredictionForm({
-            homeGoals: "",
-            awayGoals: "",
-            updatedAt: "",
-          });
-        }
+          if (!next) {
+            setEditingPrediction(null);
+            setPredictionForm({
+              homeGoals: "",
+              awayGoals: "",
+              updatedAt: "",
+            });
+          }
 
-        return next;
-      });
-    }
-  };
+          return next;
+        });
+      }
+    };
 
-  window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
 
-  return () => {
-    window.removeEventListener("keydown", onKeyDown);
-  };
-}, [user?.isAdmin]);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [user?.isAdmin]);
 
   if (!user?.isAdmin) {
     setLocation("/dashboard");
@@ -353,6 +375,80 @@ export default function AdminPage() {
       };
     })
     .sort((a, b) => a.userName.localeCompare(b.userName));
+
+  const handlePrivateUnlockPrediction = async (
+    userId: number,
+    userName: string
+  ) => {
+    const selectedMatchId = Number(privateUnlockMatchByUser[userId]);
+
+    if (!selectedMatchId || Number.isNaN(selectedMatchId)) {
+      toast({
+        title: "Selecione um jogo",
+        description: "Escolha o jogo que será liberado para este participante.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedMatch = upcomingMatches.find((m) => m.id === selectedMatchId);
+
+    const confirmUnlock = window.confirm(
+      `Liberar palpite somente para ${userName}${
+        selectedMatch
+          ? ` no jogo ${selectedMatch.homeTeam} x ${selectedMatch.awayTeam}`
+          : ""
+      }? Nenhum outro participante será avisado.`
+    );
+
+    if (!confirmUnlock) return;
+
+    setProcessingPrivateUnlock(userId);
+
+    try {
+      const token = localStorage.getItem("bolao_token");
+
+      const res = await fetch("/api/admin/predictions/private-unlock", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId,
+          matchId: selectedMatchId,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+      } | null;
+
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Erro ao liberar palpite");
+      }
+
+      toast({
+        title: "Palpite liberado!",
+        description: `Liberação individual feita somente para ${userName}.`,
+      });
+
+      setPrivateUnlockMatchByUser((prev) => ({
+        ...prev,
+        [userId]: "",
+      }));
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description:
+          err instanceof Error ? err.message : "Erro ao liberar palpite",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingPrivateUnlock(null);
+    }
+  };
 
   const handleSyncMatches = async () => {
     setSyncing(true);
@@ -435,7 +531,7 @@ export default function AdminPage() {
 
   const handleUnlockPredictions = async (matchId: number) => {
     const confirmUnlock = window.confirm(
-      "Deseja liberar palpites para esta partida mesmo dentro da última 1 hora?"
+      "Deseja liberar palpites para esta partida para TODOS os participantes?"
     );
 
     if (!confirmUnlock) return;
@@ -465,7 +561,7 @@ export default function AdminPage() {
 
       toast({
         title: "Palpites liberados!",
-        description: "Os usuários podem palpitar nesta partida.",
+        description: "Todos os usuários podem palpitar nesta partida.",
       });
 
       qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
@@ -871,6 +967,7 @@ export default function AdminPage() {
                 onClick={() => {
                   qc.invalidateQueries({ queryKey: ["admin-users"] });
                   qc.invalidateQueries({ queryKey: ["admin-predictions"] });
+                  qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
                 }}
               >
                 <RefreshCw className="w-4 h-4" />
@@ -1018,7 +1115,10 @@ export default function AdminPage() {
                   })
                   .map((u) => {
                     const userPhoto =
-                      u.avatarUrl ?? u.profileImage ?? u.photoUrl ?? u.imageUrl;
+                      u.avatarUrl ??
+                      u.profileImage ??
+                      u.photoUrl ??
+                      u.imageUrl;
 
                     return (
                       <div
@@ -1106,7 +1206,7 @@ export default function AdminPage() {
 
         {activeTab === "palpites" && (
           <div className="space-y-3">
-            {loadingPredictions || loadingUsers ? (
+            {loadingPredictions || loadingUsers || loadingMatches ? (
               <div className="space-y-2">
                 {[...Array(5)].map((_, i) => (
                   <Skeleton key={i} className="h-20 rounded-xl" />
@@ -1149,7 +1249,70 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
+                        <div
+                          className="flex items-center gap-2 flex-wrap justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Select
+                            value={
+                              privateUnlockMatchByUser[group.userId] ?? ""
+                            }
+                            onValueChange={(value) =>
+                              setPrivateUnlockMatchByUser((prev) => ({
+                                ...prev,
+                                [group.userId]: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-[220px] h-8 text-xs">
+                              <SelectValue placeholder="Liberar jogo..." />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              {upcomingMatches.length === 0 ? (
+                                <SelectItem value="none" disabled>
+                                  Nenhum jogo em breve
+                                </SelectItem>
+                              ) : (
+                                upcomingMatches.map((m) => (
+                                  <SelectItem key={m.id} value={String(m.id)}>
+                                    {m.homeTeam} x {m.awayTeam} -{" "}
+                                    {format(
+                                      new Date(m.matchDate),
+                                      "dd/MM HH:mm",
+                                      {
+                                        locale: ptBR,
+                                      }
+                                    )}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 border-green-500/30 text-green-400 hover:bg-green-500/10"
+                            onClick={() =>
+                              handlePrivateUnlockPrediction(
+                                group.userId,
+                                group.userName
+                              )
+                            }
+                            disabled={
+                              processingPrivateUnlock === group.userId ||
+                              upcomingMatches.length === 0
+                            }
+                          >
+                            <LockOpen className="w-3.5 h-3.5" />
+                            {processingPrivateUnlock === group.userId
+                              ? "Liberando..."
+                              : "Liberar"}
+                          </Button>
+                        </div>
+
                         <Badge className="bg-primary/20 text-primary border-primary/30">
                           {group.predictions.length}{" "}
                           {group.predictions.length === 1
@@ -1342,12 +1505,12 @@ export default function AdminPage() {
                                   <p className="text-xs text-muted-foreground">
                                     Palpite feito em{" "}
                                     {format(
-  new Date(p.updatedAt),
-  "dd/MM HH:mm",
-  {
-    locale: ptBR,
-  }
-)}
+                                      new Date(p.updatedAt),
+                                      "dd/MM HH:mm",
+                                      {
+                                        locale: ptBR,
+                                      }
+                                    )}
                                   </p>
                                 </div>
                               </div>
@@ -1373,7 +1536,7 @@ export default function AdminPage() {
           ) : (
             <div className="bg-card border border-card-border rounded-xl overflow-hidden">
               <div className="divide-y divide-border">
-                {(matches as AdminMatch[] | undefined)?.map((m) => (
+                {adminMatches.map((m) => (
                   <div
                     key={m.id}
                     className="px-4 py-3.5 flex items-center gap-4"
@@ -1495,7 +1658,7 @@ export default function AdminPage() {
                   </div>
                 ))}
 
-                {!matches?.length && (
+                {!adminMatches.length && (
                   <div className="px-5 py-12 text-center text-sm text-muted-foreground">
                     Nenhum jogo cadastrado. Clique em "Novo Jogo" para começar.
                   </div>
@@ -1715,8 +1878,7 @@ export default function AdminPage() {
                 />
 
                 <p className="text-xs text-muted-foreground">
-                  Cole o link do YouTube para exibir a transmissão na aba Ao
-                  Vivo
+                  Cole o link do YouTube para exibir a transmissão na aba Ao Vivo
                 </p>
               </div>
             </div>

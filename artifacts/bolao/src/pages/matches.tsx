@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInMinutes, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar } from "lucide-react";
+import { Calendar, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MatchStatus = "upcoming" | "live" | "finished";
@@ -56,6 +56,18 @@ function StatusBadge({
   );
 }
 
+function formatDeadlineTime(minutes: number) {
+  if (minutes <= 0) return "0min";
+
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  if (hours > 0 && mins > 0) return `${hours}h ${mins}min`;
+  if (hours > 0) return `${hours}h`;
+
+  return `${mins}min`;
+}
+
 function DeadlineLabel({
   matchDate,
   status,
@@ -65,21 +77,35 @@ function DeadlineLabel({
 }) {
   if (status !== "upcoming") return null;
 
-  const minsLeft = differenceInMinutes(new Date(matchDate), new Date());
+  const minutesUntilMatch = differenceInMinutes(new Date(matchDate), new Date());
+  const minutesUntilDeadline = minutesUntilMatch - 60;
 
-  if (minsLeft <= 60) {
+  if (minutesUntilDeadline <= 0) {
     return (
-      <span className="text-[10px] text-red-400 font-semibold">
-        Prazo encerrado
-      </span>
+      <div className="mb-3 flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5">
+        <Clock3 className="h-3.5 w-3.5 text-red-400" />
+        <span className="text-[11px] md:text-xs font-bold text-red-400 whitespace-nowrap">
+          Prazo encerrado
+        </span>
+      </div>
     );
   }
 
-  if (minsLeft <= 120) {
+  if (minutesUntilMatch <= 120) {
     return (
-      <span className="text-[10px] text-yellow-400 font-semibold">
-        Palpite encerra em {minsLeft - 60}min
-      </span>
+      <div className="mb-3 flex items-center gap-2 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-3.5 py-1.5 shadow-[0_0_18px_rgba(250,204,21,0.12)]">
+        <Clock3 className="h-3.5 w-3.5 text-yellow-400" />
+
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <span className="hidden md:inline text-[11px] font-bold uppercase tracking-wide text-yellow-400/80">
+            Palpite fecha em
+          </span>
+
+          <span className="text-sm md:text-base font-black text-yellow-300 tabular-nums leading-none">
+            {formatDeadlineTime(minutesUntilDeadline)}
+          </span>
+        </div>
+      </div>
     );
   }
 
@@ -242,6 +268,11 @@ export default function MatchesPage() {
                           </div>
                         ) : (
                           <div className="flex flex-col items-center gap-2">
+                            <DeadlineLabel
+                              matchDate={m.matchDate}
+                              status={m.status}
+                            />
+
                             <div className="text-center">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                 {format(new Date(m.matchDate), "dd MMM", {
@@ -249,7 +280,7 @@ export default function MatchesPage() {
                                 })}
                               </p>
 
-                              <p className="mt-0.5 text-base md:text-lg font-black text-foreground tabular-nums leading-none">
+                              <p className="mt-0.5 text-xl md:text-2xl font-black text-foreground tabular-nums leading-none">
                                 {format(new Date(m.matchDate), "HH:mm")}
                               </p>
                             </div>
@@ -266,11 +297,6 @@ export default function MatchesPage() {
                             </div>
                           </div>
                         )}
-
-                        <DeadlineLabel
-                          matchDate={m.matchDate}
-                          status={m.status}
-                        />
                       </div>
 
                       <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">

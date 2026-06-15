@@ -5,8 +5,9 @@ import {
   predictionsTable,
   usersTable,
   matchChatMessagesTable,
+  predictionPrivateUnlocksTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, gt, isNull } from "drizzle-orm";
 import {
   CreateMatchBody,
   GetMatchParams,
@@ -53,6 +54,26 @@ function toMatchJson(match: typeof matchesTable.$inferSelect) {
     matchDate: match.matchDate.toISOString(),
     createdAt: match.createdAt.toISOString(),
   };
+}
+
+async function hasPrivateUnlock(userId: number, matchId: number) {
+  const now = new Date();
+
+  const [privateUnlock] = await db
+    .select()
+    .from(predictionPrivateUnlocksTable)
+    .where(
+      and(
+        eq(predictionPrivateUnlocksTable.userId, userId),
+        eq(predictionPrivateUnlocksTable.matchId, matchId),
+        or(
+          isNull(predictionPrivateUnlocksTable.expiresAt),
+          gt(predictionPrivateUnlocksTable.expiresAt, now)
+        )
+      )
+    );
+
+  return Boolean(privateUnlock);
 }
 
 router.get("/matches", async (req, res): Promise<void> => {
@@ -130,6 +151,11 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const privateUnlockedForMe = await hasPrivateUnlock(
+    req.user!.userId,
+    match.id
+  );
+
   const preds = await db
     .select({
       id: predictionsTable.id,
@@ -143,6 +169,7 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
       userEmail: usersTable.email,
       userIsAdmin: usersTable.isAdmin,
       userCreatedAt: usersTable.createdAt,
+      userAvatarUrl: usersTable.avatarUrl,
     })
     .from(predictionsTable)
     .innerJoin(
@@ -156,6 +183,7 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
 
   res.json({
     ...toMatchJson(match),
+    privateUnlockedForMe,
     predictions: preds.map((p) => ({
       id: p.id,
       userId: p.userId,
@@ -170,6 +198,7 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
         email: p.userEmail,
         isAdmin: p.userIsAdmin,
         createdAt: p.userCreatedAt.toISOString(),
+        avatarUrl: p.userAvatarUrl ?? null,
       },
     })),
   });
@@ -382,6 +411,7 @@ router.get(
         userEmail: usersTable.email,
         userIsAdmin: usersTable.isAdmin,
         userCreatedAt: usersTable.createdAt,
+        userAvatarUrl: usersTable.avatarUrl,
       })
       .from(predictionsTable)
       .innerJoin(
@@ -408,6 +438,7 @@ router.get(
           email: p.userEmail,
           isAdmin: p.userIsAdmin,
           createdAt: p.userCreatedAt.toISOString(),
+          avatarUrl: p.userAvatarUrl ?? null,
         },
       }))
     );

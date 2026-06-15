@@ -4,7 +4,6 @@ import {
   getGetMatchQueryKey,
   useUpsertPrediction,
   useListMyPredictions,
-  getListMyPredictionsQueryKey,
 } from "@workspace/api-client-react";
 import { Layout, UserAvatar } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +30,7 @@ type MatchWithUnlock = {
   homeScore?: number | null;
   awayScore?: number | null;
   predictionUnlocked?: boolean;
+  privateUnlockedForMe?: boolean;
   predictions?: Array<{
     id: number;
     userId: number;
@@ -128,10 +128,10 @@ export default function MatchDetailPage() {
     query: {
       enabled: !!matchId,
       queryKey: getGetMatchQueryKey(matchId),
+      refetchInterval: 10_000,
     },
   });
-
-  const { data: rawMyPredictions = [] } = useListMyPredictions();
+const { data: rawMyPredictions = [] } = useListMyPredictions();
 
   const match = rawMatch as MatchWithUnlock | undefined;
   const myPredictions = rawMyPredictions as MyPrediction[];
@@ -152,11 +152,14 @@ export default function MatchDetailPage() {
     ? differenceInMinutes(new Date(match.matchDate), new Date()) <= 60
     : true;
 
-  const isUnlockedByAdmin = match?.predictionUnlocked === true;
+  const isUnlockedByAdmin =
+    match?.predictionUnlocked === true || match?.privateUnlockedForMe === true;
+
+  const isPrivateUnlocked = match?.privateUnlockedForMe === true;
 
   const isLocked =
     !match ||
-    match.status !== "upcoming" ||
+    (match.status !== "upcoming" && !isPrivateUnlocked) ||
     (deadlineReached && !isUnlockedByAdmin);
 
   const alreadyHasPrediction = !!myPred;
@@ -295,10 +298,10 @@ export default function MatchDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={match.status} />
 
-              {isUnlockedByAdmin && match.status === "upcoming" && (
+              {isUnlockedByAdmin && (
                 <Badge className="bg-green-500/20 text-green-400 border-green-500/30 gap-1">
                   <LockOpen className="w-3 h-3" />
-                  Palpites liberados
+                  {isPrivateUnlocked ? "Liberado para você" : "Palpites liberados"}
                 </Badge>
               )}
             </div>
@@ -381,7 +384,7 @@ export default function MatchDetailPage() {
             {!isLocked && deadlineReached && isUnlockedByAdmin && (
               <div className="flex items-center gap-1.5 text-xs text-green-400">
                 <LockOpen className="w-3.5 h-3.5" />
-                Liberado pelo admin
+                {isPrivateUnlocked ? "Liberado para você" : "Liberado pelo admin"}
               </div>
             )}
           </div>

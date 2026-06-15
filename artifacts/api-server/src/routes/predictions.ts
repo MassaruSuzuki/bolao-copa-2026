@@ -4,8 +4,9 @@ import {
   predictionsTable,
   matchesTable,
   usersTable,
+  predictionPrivateUnlocksTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, gt, isNull } from "drizzle-orm";
 import { UpsertPredictionBody } from "@workspace/api-zod";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 
@@ -23,6 +24,89 @@ function toIsoPrediction<T extends { createdAt: Date; updatedAt: Date }>(
   };
 }
 
+async function hasPrivatePredictionUnlock(userId: number, matchId: number) {
+  const now = new Date();
+
+  const [unlock] = await db
+    .select()
+    .from(predictionPrivateUnlocksTable)
+    .where(
+      and(
+        eq(predictionPrivateUnlocksTable.userId, userId),
+        eq(predictionPrivateUnlocksTable.matchId, matchId),
+        or(
+          isNull(predictionPrivateUnlocksTable.expiresAt),
+          gt(predictionPrivateUnlocksTable.expiresAt, now)
+        )
+      )
+    );
+
+  return Boolean(unlock);
+}
+
+router.post(
+  "/admin/predictions/private-unlock",
+  requireAuth,
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const userId = Number(req.body.userId);
+    const matchId = Number(req.body.matchId);
+    const adminId = req.user!.userId;
+
+    if (Number.isNaN(userId) || Number.isNaN(matchId)) {
+      res.status(400).json({ error: "userId ou matchId inválido" });
+      return;
+    }
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+
+    if (!user) {
+      res.status(404).json({ error: "Usuário não encontrado" });
+      return;
+    }
+
+    const [match] = await db
+      .select()
+      .from(matchesTable)
+      .where(eq(matchesTable.id, matchId));
+
+    if (!match) {
+      res.status(404).json({ error: "Jogo não encontrado" });
+      return;
+    }
+
+    await db
+      .insert(predictionPrivateUnlocksTable)
+      .values({
+        userId,
+        matchId,
+        createdByAdminId: adminId,
+        expiresAt: null,
+      })
+      .onConflictDoUpdate({
+        target: [
+          predictionPrivateUnlocksTable.userId,
+          predictionPrivateUnlocksTable.matchId,
+        ],
+        set: {
+          createdByAdminId: adminId,
+          createdAt: new Date(),
+          expiresAt: null,
+        },
+      });
+
+    res.json({
+      ok: true,
+      message: "Palpite liberado somente para este usuário.",
+      userId,
+      matchId,
+    });
+  }
+);
+
 router.get(
   "/admin/predictions",
   requireAuth,
@@ -31,11 +115,9 @@ router.get(
     const predictions = await db
       .select({
         id: predictionsTable.id,
-
         userId: predictionsTable.userId,
         userName: usersTable.name,
         userEmail: usersTable.email,
-
         matchId: predictionsTable.matchId,
         homeTeam: matchesTable.homeTeam,
         awayTeam: matchesTable.awayTeam,
@@ -44,10 +126,8 @@ router.get(
         matchDate: matchesTable.matchDate,
         status: matchesTable.status,
         predictionUnlocked: matchesTable.predictionUnlocked,
-
         homeGoals: predictionsTable.homeGoals,
         awayGoals: predictionsTable.awayGoals,
-
         createdAt: predictionsTable.createdAt,
         updatedAt: predictionsTable.updatedAt,
       })
@@ -90,38 +170,20 @@ router.patch(
 
     const { homeGoals, awayGoals } = parsed.data;
 
-    let updatedAt: Date | undefined;
-
-    if (req.body.updatedAt) {
-      const parsedUpdatedAt = new Date(req.body.updatedAt);
-
-      if (Number.isNaN(parsedUpdatedAt.getTime())) {
-        res.status(400).json({ error: "Data de atualização inválida" });
-        return;
-      }
-
-      updatedAt = parsedUpdatedAt;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(predictionsTable)
-      .where(eq(predictionsTable.id, predictionId));
-
-    if (!existing) {
-      res.status(404).json({ error: "Palpite não encontrado" });
-      return;
-    }
-
     const [updated] = await db
       .update(predictionsTable)
       .set({
         homeGoals,
         awayGoals,
-        ...(updatedAt ? { updatedAt } : {}),
+        updatedAt: req.body.updatedAt ? new Date(req.body.updatedAt) : new Date(),
       })
       .where(eq(predictionsTable.id, predictionId))
       .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Palpite não encontrado" });
+      return;
+    }
 
     res.json(toIsoPrediction(updated));
   }
@@ -148,21 +210,33 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  if (match.status !== "upcoming") {
+  const now = new Date();
+  const deadline = new Date(
+    match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
+  );
+
+  const privateUnlock = await hasPrivatePredictionUnlock(userId, matchId);
+
+  console.log("PRIVATE UNLOCK TEST", {
+    userId,
+    matchId,
+    privateUnlock,
+    predictionUnlocked: match.predictionUnlocked,
+    status: match.status,
+    deadline,
+    now,
+  });
+
+  if (match.status !== "upcoming" && !privateUnlock) {
     res.status(400).json({
       error: "Palpites só são permitidos para jogos não iniciados",
     });
     return;
   }
 
-  const now = new Date();
-  const deadline = new Date(
-    match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
-  );
-
-  if (now >= deadline && !match.predictionUnlocked) {
+  if (now >= deadline && !match.predictionUnlocked && !privateUnlock) {
     res.status(400).json({
-      error: "Prazo para palpites encerrado. Aguarde liberação do admin.",
+      error: "Prazo para palpites encerrado.",
     });
     return;
   }
@@ -178,9 +252,22 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
     );
 
   if (existingPrediction) {
-    res.status(409).json({
-      error: "Você já tem um palpite para este jogo.",
-    });
+    const [updated] = await db
+      .update(predictionsTable)
+      .set({
+        homeGoals,
+        awayGoals,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(predictionsTable.userId, userId),
+          eq(predictionsTable.matchId, matchId)
+        )
+      )
+      .returning();
+
+    res.json(toIsoPrediction(updated));
     return;
   }
 
@@ -211,11 +298,7 @@ router.delete(
     const userId = req.user!.userId;
 
     const [existingPrediction] = await db
-      .select({
-        id: predictionsTable.id,
-        userId: predictionsTable.userId,
-        matchId: predictionsTable.matchId,
-      })
+      .select()
       .from(predictionsTable)
       .where(
         and(
@@ -239,7 +322,12 @@ router.delete(
       return;
     }
 
-    if (match.status !== "upcoming") {
+    const privateUnlock = await hasPrivatePredictionUnlock(
+      userId,
+      existingPrediction.matchId
+    );
+
+    if (match.status !== "upcoming" && !privateUnlock) {
       res.status(400).json({
         error: "Não é possível excluir palpite de jogo já iniciado",
       });
@@ -251,10 +339,9 @@ router.delete(
       match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
     );
 
-    if (now >= deadline && !match.predictionUnlocked) {
+    if (now >= deadline && !match.predictionUnlocked && !privateUnlock) {
       res.status(400).json({
-        error:
-          "Prazo encerrado. Só é possível excluir se o admin liberar os palpites.",
+        error: "Prazo encerrado.",
       });
       return;
     }
