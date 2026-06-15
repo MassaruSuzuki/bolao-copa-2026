@@ -1,6 +1,6 @@
 /// <reference types="node" />
 
-import { defineConfig } from "drizzle-kit";
+import { defineConfig } from "drizzle-kit";dójfoeu
 
 const databaseUrl = process.env.DATABASE_URL;
 
