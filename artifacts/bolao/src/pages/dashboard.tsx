@@ -424,12 +424,20 @@ export default function DashboardPage() {
 
               {featuredMatch ? (
                 <div
-                  className="relative overflow-hidden px-4 py-5 md:px-6 md:py-8"
-                  style={{
-                    background:
-                      "radial-gradient(circle at 50% 15%, rgba(201,162,39,0.25) 0%, rgba(201,162,39,0.08) 34%, transparent 58%), linear-gradient(135deg, rgba(12,14,20,1) 0%, rgba(8,9,13,1) 55%, rgba(0,0,0,1) 100%)",
-                  }}
-                >
+  className="relative overflow-hidden px-4 py-5 md:px-6 md:py-8"
+  style={{
+    backgroundImage: `
+      linear-gradient(
+        rgba(0,0,0,0.70),
+        rgba(0,0,0,0.70)
+      ),
+      url('/images/stadium-bg.jpg')
+    `,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  }}
+>
                   <div className="absolute inset-x-8 top-8 h-20 rounded-full bg-primary/15 blur-3xl" />
                   <div className="absolute -left-20 -top-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
                   <div className="absolute -right-20 bottom-0 h-40 w-40 rounded-full bg-red-500/10 blur-3xl" />
