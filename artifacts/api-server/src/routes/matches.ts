@@ -16,6 +16,45 @@ import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+type MatchStatus = "upcoming" | "live" | "finished";
+
+const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+function getAutoStatus(match: {
+  status: string;
+  matchDate: Date;
+  homeScore: number | null;
+  awayScore: number | null;
+}): MatchStatus {
+  if (match.status === "finished") return "finished";
+
+  const now = Date.now();
+  const kickoff = match.matchDate.getTime();
+
+  if (now >= kickoff && now <= kickoff + LIVE_WINDOW_MS) {
+    return "live";
+  }
+
+  if (
+    now > kickoff + LIVE_WINDOW_MS &&
+    match.homeScore !== null &&
+    match.awayScore !== null
+  ) {
+    return "finished";
+  }
+
+  return "upcoming";
+}
+
+function toMatchJson(match: typeof matchesTable.$inferSelect) {
+  return {
+    ...match,
+    status: getAutoStatus(match),
+    matchDate: match.matchDate.toISOString(),
+    createdAt: match.createdAt.toISOString(),
+  };
+}
+
 router.get("/matches", async (req, res): Promise<void> => {
   const params = ListMatchesQueryParams.safeParse(req.query);
   const status = params.success ? params.data.status : undefined;
@@ -25,7 +64,14 @@ router.get("/matches", async (req, res): Promise<void> => {
     .from(matchesTable)
     .orderBy(matchesTable.matchDate);
 
-  const filtered = status ? matches.filter((m) => m.status === status) : matches;
+  const withAutoStatus = matches.map((m) => ({
+    ...m,
+    status: getAutoStatus(m),
+  }));
+
+  const filtered = status
+    ? withAutoStatus.filter((m) => m.status === status)
+    : withAutoStatus;
 
   res.json(
     filtered.map((m) => ({
@@ -61,11 +107,7 @@ router.post(
       })
       .returning();
 
-    res.status(201).json({
-      ...match,
-      matchDate: match.matchDate.toISOString(),
-      createdAt: match.createdAt.toISOString(),
-    });
+    res.status(201).json(toMatchJson(match));
   }
 );
 
@@ -113,9 +155,7 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
     .where(eq(predictionsTable.matchId, params.data.id));
 
   res.json({
-    ...match,
-    matchDate: match.matchDate.toISOString(),
-    createdAt: match.createdAt.toISOString(),
+    ...toMatchJson(match),
     predictions: preds.map((p) => ({
       id: p.id,
       userId: p.userId,
@@ -207,11 +247,7 @@ router.patch(
       return;
     }
 
-    res.json({
-      ...match,
-      matchDate: match.matchDate.toISOString(),
-      createdAt: match.createdAt.toISOString(),
-    });
+    res.json(toMatchJson(match));
   }
 );
 
@@ -240,11 +276,7 @@ router.patch(
 
     res.json({
       success: true,
-      match: {
-        ...updated,
-        matchDate: updated.matchDate.toISOString(),
-        createdAt: updated.createdAt.toISOString(),
-      },
+      match: toMatchJson(updated),
     });
   }
 );
@@ -274,11 +306,7 @@ router.patch(
 
     res.json({
       success: true,
-      match: {
-        ...updated,
-        matchDate: updated.matchDate.toISOString(),
-        createdAt: updated.createdAt.toISOString(),
-      },
+      match: toMatchJson(updated),
     });
   }
 );
@@ -456,6 +484,9 @@ router.post("/matches/:id/chat", requireAuth, async (req, res): Promise<void> =>
     .select({
       id: matchesTable.id,
       status: matchesTable.status,
+      matchDate: matchesTable.matchDate,
+      homeScore: matchesTable.homeScore,
+      awayScore: matchesTable.awayScore,
       chatLocked: matchesTable.chatLocked,
     })
     .from(matchesTable)
@@ -466,7 +497,9 @@ router.post("/matches/:id/chat", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  if (match.status !== "live") {
+  const autoStatus = getAutoStatus(match);
+
+  if (autoStatus !== "live") {
     res.status(403).json({
       error: "O chat só fica aberto durante jogos ao vivo",
     });
