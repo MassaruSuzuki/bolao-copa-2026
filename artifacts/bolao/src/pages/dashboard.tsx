@@ -61,20 +61,37 @@ function formatBrasiliaShortDate(matchDate?: string) {
 
 function formatCountdown(matchDate?: string) {
   const targetDate = parseBrasiliaDate(matchDate);
-  if (!targetDate) return "00h 00m 00s";
+  if (!targetDate) return "00s";
 
   const diff = targetDate.getTime() - Date.now();
   if (diff <= 0) return "Começando agora";
 
   const totalSeconds = Math.floor(diff / 1000);
+
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  const parts: string[] = [];
 
-  return `${hours}h ${minutes}m ${seconds}s`;
+  if (days > 0) {
+    parts.push(`${days}d`);
+  }
+
+  if (hours > 0) {
+    parts.push(`${hours}h`);
+  }
+
+  if (minutes > 0) {
+    parts.push(`${minutes}m`);
+  }
+
+  if (seconds > 0 || parts.length === 0) {
+    parts.push(`${seconds}s`);
+  }
+
+  return parts.join(" ");
 }
 
 function StatusBadge({
