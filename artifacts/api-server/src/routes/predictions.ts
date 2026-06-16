@@ -28,7 +28,7 @@ async function hasPrivatePredictionUnlock(userId: number, matchId: number) {
   const now = new Date();
 
   const [unlock] = await db
-    .select()
+    .select({ id: predictionPrivateUnlocksTable.id })
     .from(predictionPrivateUnlocksTable)
     .where(
       and(
@@ -44,6 +44,37 @@ async function hasPrivatePredictionUnlock(userId: number, matchId: number) {
   return Boolean(unlock);
 }
 
+function getPredictionDeadline(matchDate: Date) {
+  return new Date(matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000);
+}
+
+async function canUserSubmitPrediction(params: {
+  userId: number;
+  match: typeof matchesTable.$inferSelect;
+}) {
+  const { userId, match } = params;
+
+  if (match.status === "finished") {
+    return false;
+  }
+
+  const privateAccess = await hasPrivatePredictionUnlock(userId, match.id);
+  const globalAccess = match.predictionUnlocked === true;
+
+  if (match.status !== "upcoming" && !privateAccess) {
+    return false;
+  }
+
+  const now = new Date();
+  const deadline = getPredictionDeadline(match.matchDate);
+
+  if (now >= deadline && !globalAccess && !privateAccess) {
+    return false;
+  }
+
+  return true;
+}
+
 router.post(
   "/admin/predictions/private-unlock",
   requireAuth,
@@ -54,27 +85,27 @@ router.post(
     const adminId = req.user!.userId;
 
     if (Number.isNaN(userId) || Number.isNaN(matchId)) {
-      res.status(400).json({ error: "userId ou matchId inválido" });
+      res.status(400).json({ error: "Dados inválidos." });
       return;
     }
 
     const [user] = await db
-      .select()
+      .select({ id: usersTable.id })
       .from(usersTable)
       .where(eq(usersTable.id, userId));
 
     if (!user) {
-      res.status(404).json({ error: "Usuário não encontrado" });
+      res.status(404).json({ error: "Registro não encontrado." });
       return;
     }
 
     const [match] = await db
-      .select()
+      .select({ id: matchesTable.id })
       .from(matchesTable)
       .where(eq(matchesTable.id, matchId));
 
     if (!match) {
-      res.status(404).json({ error: "Jogo não encontrado" });
+      res.status(404).json({ error: "Registro não encontrado." });
       return;
     }
 
@@ -100,7 +131,7 @@ router.post(
 
     res.json({
       ok: true,
-      message: "Palpite liberado somente para este usuário.",
+      message: "Configuração aplicada com sucesso.",
       userId,
       matchId,
     });
@@ -125,7 +156,6 @@ router.get(
         awayLogo: matchesTable.awayLogo,
         matchDate: matchesTable.matchDate,
         status: matchesTable.status,
-        predictionUnlocked: matchesTable.predictionUnlocked,
         homeGoals: predictionsTable.homeGoals,
         awayGoals: predictionsTable.awayGoals,
         createdAt: predictionsTable.createdAt,
@@ -155,7 +185,7 @@ router.patch(
     const predictionId = Number(req.params.id);
 
     if (Number.isNaN(predictionId)) {
-      res.status(400).json({ error: "ID inválido" });
+      res.status(400).json({ error: "ID inválido." });
       return;
     }
 
@@ -175,13 +205,15 @@ router.patch(
       .set({
         homeGoals,
         awayGoals,
-        updatedAt: req.body.updatedAt ? new Date(req.body.updatedAt) : new Date(),
+        updatedAt: req.body.updatedAt
+          ? new Date(req.body.updatedAt)
+          : new Date(),
       })
       .where(eq(predictionsTable.id, predictionId))
       .returning();
 
     if (!updated) {
-      res.status(404).json({ error: "Palpite não encontrado" });
+      res.status(404).json({ error: "Registro não encontrado." });
       return;
     }
 
@@ -206,38 +238,14 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
     .where(eq(matchesTable.id, matchId));
 
   if (!match) {
-    res.status(404).json({ error: "Jogo não encontrado" });
+    res.status(404).json({ error: "Jogo não encontrado." });
     return;
   }
 
-  const now = new Date();
-  const deadline = new Date(
-    match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
-  );
+  const allowed = await canUserSubmitPrediction({ userId, match });
 
-  const privateUnlock = await hasPrivatePredictionUnlock(userId, matchId);
-
-  console.log("PRIVATE UNLOCK TEST", {
-    userId,
-    matchId,
-    privateUnlock,
-    predictionUnlocked: match.predictionUnlocked,
-    status: match.status,
-    deadline,
-    now,
-  });
-
-  if (match.status !== "upcoming" && !privateUnlock) {
-    res.status(400).json({
-      error: "Palpites só são permitidos para jogos não iniciados",
-    });
-    return;
-  }
-
-  if (now >= deadline && !match.predictionUnlocked && !privateUnlock) {
-    res.status(400).json({
-      error: "Prazo para palpites encerrado.",
-    });
+  if (!allowed) {
+    res.status(403).json({ error: "Palpites indisponíveis." });
     return;
   }
 
@@ -291,7 +299,7 @@ router.delete(
     const predictionId = Number(req.params.id);
 
     if (Number.isNaN(predictionId)) {
-      res.status(400).json({ error: "ID inválido" });
+      res.status(400).json({ error: "ID inválido." });
       return;
     }
 
@@ -308,7 +316,7 @@ router.delete(
       );
 
     if (!existingPrediction) {
-      res.status(404).json({ error: "Palpite não encontrado" });
+      res.status(404).json({ error: "Registro não encontrado." });
       return;
     }
 
@@ -318,31 +326,14 @@ router.delete(
       .where(eq(matchesTable.id, existingPrediction.matchId));
 
     if (!match) {
-      res.status(404).json({ error: "Jogo não encontrado" });
+      res.status(404).json({ error: "Jogo não encontrado." });
       return;
     }
 
-    const privateUnlock = await hasPrivatePredictionUnlock(
-      userId,
-      existingPrediction.matchId
-    );
+    const allowed = await canUserSubmitPrediction({ userId, match });
 
-    if (match.status !== "upcoming" && !privateUnlock) {
-      res.status(400).json({
-        error: "Não é possível excluir palpite de jogo já iniciado",
-      });
-      return;
-    }
-
-    const now = new Date();
-    const deadline = new Date(
-      match.matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000
-    );
-
-    if (now >= deadline && !match.predictionUnlocked && !privateUnlock) {
-      res.status(400).json({
-        error: "Prazo encerrado.",
-      });
+    if (!allowed) {
+      res.status(403).json({ error: "Palpites indisponíveis." });
       return;
     }
 

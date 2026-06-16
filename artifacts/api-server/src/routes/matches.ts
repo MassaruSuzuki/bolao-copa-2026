@@ -53,7 +53,7 @@ function isDeadlineReached(matchDate: Date) {
   return diffMs <= DEADLINE_MINUTES * 60 * 1000;
 }
 
-function toMatchJson(match: typeof matchesTable.$inferSelect) {
+function toAdminMatchJson(match: typeof matchesTable.$inferSelect) {
   return {
     ...match,
     status: getAutoStatus(match),
@@ -145,7 +145,7 @@ router.post(
       })
       .returning();
 
-    res.status(201).json(toMatchJson(match));
+    res.status(201).json(toAdminMatchJson(match));
   }
 );
 
@@ -170,7 +170,10 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
 
   const autoStatus = getAutoStatus(match);
   const deadlineReached = isDeadlineReached(match.matchDate);
-  const privateUnlockedForMe = await hasPrivateUnlock(req.user!.userId, match.id);
+  const privateUnlockedForMe = await hasPrivateUnlock(
+    req.user!.userId,
+    match.id
+  );
 
   const canPredict =
     autoStatus === "upcoming" &&
@@ -301,7 +304,7 @@ router.patch(
       return;
     }
 
-    res.json(toMatchJson(match));
+    res.json(toAdminMatchJson(match));
   }
 );
 
@@ -330,7 +333,7 @@ router.patch(
 
     res.json({
       success: true,
-      match: toMatchJson(updated),
+      match: toAdminMatchJson(updated),
     });
   }
 );
@@ -360,7 +363,7 @@ router.patch(
 
     res.json({
       success: true,
-      match: toMatchJson(updated),
+      match: toAdminMatchJson(updated),
     });
   }
 );

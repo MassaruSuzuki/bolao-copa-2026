@@ -51,7 +51,7 @@ import {
 } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
-type AdminTab = "participantes" | "jogos" | "registros";
+type AdminTab = "participantes" | "jogos" | "palpites";
 
 interface EditState {
   id: number;
@@ -155,7 +155,7 @@ function useAdminPredictions() {
       });
 
       if (!res.ok) {
-        throw new Error("Erro ao carregar registros");
+        throw new Error("Erro ao carregar palpites");
       }
 
       return res.json() as Promise<AdminPrediction[]>;
@@ -216,7 +216,7 @@ export default function AdminPage() {
     if (
       saved === "participantes" ||
       saved === "jogos" ||
-      saved === "registros"
+      saved === "palpites"
     ) {
       return saved;
     }
@@ -235,9 +235,7 @@ export default function AdminPage() {
     useState<ParticipantUser | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [resettingPassword, setResettingPassword] = useState(false);
-
-  // Modo de edição manual de registros removido do frontend.
-  // Alterações sensíveis devem ficar somente no backend/admin autorizado.
+  // Edição oculta de palpites removida do frontend.
 
   const { data: participants, isLoading: loadingUsers } = useAdminUsers();
   const { data: predictions, isLoading: loadingPredictions } =
@@ -278,6 +276,7 @@ export default function AdminPage() {
   useEffect(() => {
     localStorage.setItem("admin_tab", activeTab);
   }, [activeTab]);
+
   if (!user?.isAdmin) {
     setLocation("/dashboard");
     return null;
@@ -491,76 +490,6 @@ export default function AdminPage() {
       setProcessingUnlock(null);
     }
   };
-
-  const handleSavePrediction = async (predictionId: number) => {
-    const homeGoals = Number(predictionForm.homeGoals);
-    const awayGoals = Number(predictionForm.awayGoals);
-
-    if (
-      predictionForm.homeGoals === "" ||
-      predictionForm.awayGoals === "" ||
-      Number.isNaN(homeGoals) ||
-      Number.isNaN(awayGoals) ||
-      homeGoals < 0 ||
-      awayGoals < 0
-    ) {
-      toast({
-        title: "Placar inválido",
-        description: "Digite gols válidos para os dois times.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSavingPrediction(predictionId);
-
-    try {
-      const token = localStorage.getItem("bolao_token");
-
-      const res = await fetch(`/api/admin/predictions/${predictionId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          homeGoals,
-          awayGoals,
-          updatedAt: predictionForm.updatedAt
-            ? new Date(predictionForm.updatedAt).toISOString()
-            : undefined,
-        }),
-      });
-
-      const data = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-
-      if (!res.ok) {
-        throw new Error(data?.error ?? "Erro ao atualizar registro");
-      }
-
-      toast({
-        title: "Registro atualizado!",
-        description: "A alteração foi salva com sucesso.",
-      });
-
-      setEditingPrediction(null);
-      setPredictionForm({ homeGoals: "", awayGoals: "", updatedAt: "" });
-
-      qc.invalidateQueries({ queryKey: ["admin-predictions"] });
-    } catch (err) {
-      toast({
-        title: "Erro",
-        description:
-          err instanceof Error ? err.message : "Erro ao atualizar registro",
-        variant: "destructive",
-      });
-    } finally {
-      setSavingPrediction(null);
-    }
-  };
-
   const handleResetPassword = async () => {
     if (!resetPasswordUser) return;
 
@@ -869,7 +798,7 @@ export default function AdminPage() {
               </h1>
 
               <p className="text-muted-foreground text-sm">
-                Gerencie participantes, jogos e registros
+                Gerencie participantes, jogos e palpites
               </p>
             </div>
           </div>
@@ -886,7 +815,7 @@ export default function AdminPage() {
             </Button>
           )}
 
-          {activeTab === "registros" && (
+          {activeTab === "palpites" && (
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="outline"
@@ -996,14 +925,14 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("registros")}
+            onClick={() => setActiveTab("palpites")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "registros"
+              activeTab === "palpites"
                 ? "text-[#1a1200]"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             style={
-              activeTab === "registros"
+              activeTab === "palpites"
                 ? {
                     background:
                       "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
@@ -1013,7 +942,7 @@ export default function AdminPage() {
             }
           >
             <FileText className="w-4 h-4" />
-            Registros
+            Palpites
           </button>
         </div>
 
@@ -1147,7 +1076,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {activeTab === "registros" && (
+        {activeTab === "palpites" && (
           <div className="space-y-3">
             {loadingPredictions || loadingUsers || loadingMatches ? (
               <div className="space-y-2">
@@ -1196,8 +1125,8 @@ export default function AdminPage() {
                         <Badge className="bg-primary/20 text-primary border-primary/30">
                           {group.predictions.length}{" "}
                           {group.predictions.length === 1
-                            ? "registro"
-                            : "registros"}
+                            ? "palpite"
+                            : "palpites"}
                         </Badge>
 
                         <ChevronDown
@@ -1212,10 +1141,12 @@ export default function AdminPage() {
                       <div className="border-t border-border divide-y divide-border">
                         {group.predictions.length === 0 ? (
                           <div className="px-4 py-6 text-sm text-muted-foreground text-center">
-                            Este participante ainda não fez nenhum registro.
+                            Este participante ainda não fez nenhum palpite.
                           </div>
                         ) : (
                           group.predictions.map((p) => {
+                            
+
                             return (
                               <div
                                 key={p.id}
@@ -1260,7 +1191,8 @@ export default function AdminPage() {
                                         locale: ptBR,
                                       }
                                     )}
-                                  </p>                                </div>
+                                  </p>
+                                </div>
 
                                 <div className="text-right flex-shrink-0">
                                   <Badge variant="secondary" className="mb-1">
@@ -1268,7 +1200,7 @@ export default function AdminPage() {
                                   </Badge>
 
                                   <p className="text-xs text-muted-foreground">
-                                    Registro feito em{" "}
+                                    Palpite feito em{" "}
                                     {format(
                                       new Date(p.updatedAt),
                                       "dd/MM HH:mm",
