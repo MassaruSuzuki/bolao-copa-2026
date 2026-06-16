@@ -119,9 +119,9 @@ function TodayCube({
     <div className="flex justify-center [perspective:700px]">
       <span
         key={`${item.label}-${item.points}-${index}`}
-        className="inline-flex animate-[cubeFlip_650ms_ease-in-out] items-center justify-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black leading-none whitespace-nowrap [transform-origin:center_center]"
+        className="inline-flex max-w-full animate-[cubeFlip_650ms_ease-in-out] items-center justify-center gap-1 overflow-hidden rounded-full bg-emerald-500/10 px-1.5 py-1 text-[10px] font-black leading-none whitespace-nowrap [transform-origin:center_center]"
       >
-        <span className="text-muted-foreground">{item.label}</span>
+        <span className="max-w-[64px] truncate text-muted-foreground">{item.label}</span>
         <span className="text-emerald-400">▲</span>
         <span className="text-emerald-400 tabular-nums">{item.points}</span>
       </span>
@@ -262,7 +262,7 @@ export default function TabelaPage() {
         `}
       </style>
 
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="w-full max-w-full overflow-x-hidden px-3 py-4 md:p-6 space-y-5 md:space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             Tabela do Bolão
@@ -511,7 +511,7 @@ export default function TabelaPage() {
               </div>
             </div>
 
-            <div className="md:hidden space-y-3">
+            <div className="md:hidden space-y-2.5 w-full max-w-full overflow-hidden">
               {sortedRanking.map((entry) => {
                 const position = entry.position;
                 const isMe = entry.userId === user?.id;
@@ -529,9 +529,9 @@ export default function TabelaPage() {
                 const todayItems =
                   !hasLiveMatch && todayGain > 0
                     ? todayMatches.map((match) => ({
-                        label: `(${teamCode(match.homeTeam)} x ${teamCode(
+                        label: `${teamCode(match.homeTeam)} x ${teamCode(
                           match.awayTeam
-                        )})`,
+                        )}`,
                         points: todayGain,
                       }))
                     : [];
@@ -540,7 +540,7 @@ export default function TabelaPage() {
                   <div
                     key={entry.userId}
                     className={cn(
-                      "relative overflow-hidden rounded-2xl border bg-card p-4",
+                      "relative w-full max-w-full overflow-hidden rounded-2xl border bg-card px-3 py-3 shadow-sm",
                       isLeader
                         ? "border-yellow-500/35 bg-yellow-500/5"
                         : isLast
@@ -551,50 +551,45 @@ export default function TabelaPage() {
                   >
                     <PositionBar isLeader={isLeader} isLast={isLast} />
 
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-black">
-                          <PositionBadge
-                            position={position}
-                            isLeader={isLeader}
-                          />
-                        </div>
+                    <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-black">
+                        <PositionBadge position={position} isLeader={isLeader} />
+                      </div>
 
-                        <UserAvatar
-                          name={entry.name}
-                          avatarUrl={
-                            (entry as { avatarUrl?: string | null }).avatarUrl
-                          }
-                          size={9}
-                          textSize="sm"
-                        />
+                      <UserAvatar
+                        name={entry.name}
+                        avatarUrl={
+                          (entry as { avatarUrl?: string | null }).avatarUrl
+                        }
+                        size={8}
+                        textSize="xs"
+                      />
 
-                        <div className="min-w-0">
-                          <p
-                            className={cn(
-                              "truncate text-sm font-black",
-                              isLeader && "text-yellow-400",
-                              isMe && !isLeader
-                                ? "text-primary"
-                                : "text-foreground"
-                            )}
-                          >
-                            {entry.name}
-                            {isMe && (
-                              <span className="ml-1 text-xs font-normal text-primary/70">
-                                (você)
-                              </span>
-                            )}
-                          </p>
+                      <div className="min-w-0 overflow-hidden">
+                        <p
+                          className={cn(
+                            "truncate text-sm font-black leading-tight",
+                            isLeader && "text-yellow-400",
+                            isMe && !isLeader
+                              ? "text-primary"
+                              : "text-foreground"
+                          )}
+                        >
+                          {entry.name}
+                          {isMe && (
+                            <span className="ml-1 text-[11px] font-normal text-primary/70">
+                              você
+                            </span>
+                          )}
+                        </p>
 
-                          <p className="text-xs text-muted-foreground">
-                            {isLeader
-                              ? "Líder do Bolão"
-                              : isLast
-                                ? "Lanterna"
-                                : `${position}º colocado`}
-                          </p>
-                        </div>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {isLeader
+                            ? "Líder"
+                            : isLast
+                              ? "Lanterna"
+                              : `${position}º colocado`}
+                        </p>
                       </div>
 
                       <div className="shrink-0 text-right">
@@ -610,73 +605,72 @@ export default function TabelaPage() {
                         >
                           {entry.totalPoints}
                         </p>
-                        <p className="mt-1 text-[10px] font-bold uppercase text-muted-foreground">
+                        <p className="mt-0.5 text-[9px] font-bold uppercase text-muted-foreground">
                           pts
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <div className="mb-3 flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase text-muted-foreground">
+                    <div className="mt-3 grid grid-cols-5 gap-1.5">
+                      <div className="min-w-0 rounded-xl border border-border/50 bg-background/45 px-1.5 py-2 text-center">
+                        <p className="text-[9px] font-black uppercase text-muted-foreground">
                           Hoje
-                        </span>
-
-                        <TodayCube items={todayItems} />
+                        </p>
+                        <div className="mt-1 flex min-h-5 items-center justify-center overflow-hidden">
+                          <TodayCube items={todayItems} />
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-2 text-center">
-                        <div className="rounded-lg bg-background/50 px-2 py-2">
-                          <p className="text-[10px] font-bold uppercase text-yellow-400">
-                            AC
-                          </p>
-                          <p className="mt-1 text-base font-black tabular-nums text-yellow-400">
-                            {entry.exactScores}
-                          </p>
-                        </div>
+                      <div className="rounded-xl border border-border/50 bg-background/45 px-1.5 py-2 text-center">
+                        <p className="text-[9px] font-black uppercase text-yellow-400">
+                          AC
+                        </p>
+                        <p className="mt-1 text-base font-black tabular-nums text-yellow-400">
+                          {entry.exactScores}
+                        </p>
+                      </div>
 
-                        <div className="rounded-lg bg-background/50 px-2 py-2">
-                          <p className="text-[10px] font-bold uppercase text-primary">
-                            V
-                          </p>
-                          <p className="mt-1 text-base font-black tabular-nums text-primary">
-                            {entry.correctResults}
-                          </p>
-                        </div>
+                      <div className="rounded-xl border border-border/50 bg-background/45 px-1.5 py-2 text-center">
+                        <p className="text-[9px] font-black uppercase text-primary">
+                          V
+                        </p>
+                        <p className="mt-1 text-base font-black tabular-nums text-primary">
+                          {entry.correctResults}
+                        </p>
+                      </div>
 
-                        <div className="rounded-lg bg-background/50 px-2 py-2">
-                          <p className="text-[10px] font-bold uppercase text-red-400/80">
-                            E
-                          </p>
-                          <p
-                            className={cn(
-                              "mt-1 text-base font-black tabular-nums",
-                              erros > 0
-                                ? "text-red-400/80"
-                                : "text-muted-foreground/40"
-                            )}
-                          >
-                            {erros}
-                          </p>
-                        </div>
+                      <div className="rounded-xl border border-border/50 bg-background/45 px-1.5 py-2 text-center">
+                        <p className="text-[9px] font-black uppercase text-red-400/80">
+                          E
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-1 text-base font-black tabular-nums",
+                            erros > 0
+                              ? "text-red-400/80"
+                              : "text-muted-foreground/40"
+                          )}
+                        >
+                          {erros}
+                        </p>
+                      </div>
 
-                        <div className="rounded-lg bg-background/50 px-2 py-2">
-                          <p className="text-[10px] font-bold uppercase text-foreground">
-                            PTS
-                          </p>
-                          <p
-                            className={cn(
-                              "mt-1 text-base font-black tabular-nums",
-                              isLeader
-                                ? "text-yellow-400"
-                                : isMe
-                                  ? "text-primary"
-                                  : "text-foreground"
-                            )}
-                          >
-                            {entry.totalPoints}
-                          </p>
-                        </div>
+                      <div className="rounded-xl border border-border/50 bg-background/45 px-1.5 py-2 text-center">
+                        <p className="text-[9px] font-black uppercase text-foreground">
+                          PTS
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-1 text-base font-black tabular-nums",
+                            isLeader
+                              ? "text-yellow-400"
+                              : isMe
+                                ? "text-primary"
+                                : "text-foreground"
+                          )}
+                        >
+                          {entry.totalPoints}
+                        </p>
                       </div>
                     </div>
                   </div>

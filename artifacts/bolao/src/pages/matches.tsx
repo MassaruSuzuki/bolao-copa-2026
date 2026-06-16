@@ -27,15 +27,18 @@ function StatusBadge({
 
   if (status === "live") {
     return (
-      <Badge className="bg-red-500/20 text-red-400 border-red-500/30 animate-pulse text-[10px] px-1.5 py-0">
-        ● AO VIVO
+      <Badge className="h-5 rounded-full bg-red-500/20 px-2 text-[10px] font-black uppercase text-red-400 border-red-500/30 animate-pulse">
+        ● Ao Vivo
       </Badge>
     );
   }
 
   if (status === "finished") {
     return (
-      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+      <Badge
+        variant="secondary"
+        className="h-5 rounded-full px-2 text-[10px] font-black uppercase"
+      >
         Encerrado
       </Badge>
     );
@@ -43,14 +46,14 @@ function StatusBadge({
 
   if (matchIsToday) {
     return (
-      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px] px-1.5 py-0">
+      <Badge className="h-5 rounded-full bg-blue-500/20 px-2 text-[10px] font-black uppercase text-blue-400 border-blue-500/30">
         Hoje
       </Badge>
     );
   }
 
   return (
-    <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0">
+    <Badge className="h-5 rounded-full bg-primary/20 px-2 text-[10px] font-black uppercase text-primary border-primary/30">
       Em Breve
     </Badge>
   );
@@ -68,7 +71,7 @@ function formatDeadlineTime(minutes: number) {
   return `${mins}min`;
 }
 
-function DeadlineLabel({
+function DeadlineBadge({
   matchDate,
   status,
 }: {
@@ -82,10 +85,10 @@ function DeadlineLabel({
 
   if (minutesUntilDeadline <= 0) {
     return (
-      <div className="mb-3 flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5">
-        <Clock3 className="h-3.5 w-3.5 text-red-400" />
-        <span className="text-[11px] md:text-xs font-bold text-red-400 whitespace-nowrap">
-          Prazo encerrado
+      <div className="inline-flex h-5 items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2">
+        <Clock3 className="h-3 w-3 text-red-400" />
+        <span className="text-[10px] font-black uppercase text-red-400">
+          Fechado
         </span>
       </div>
     );
@@ -93,23 +96,35 @@ function DeadlineLabel({
 
   if (minutesUntilMatch <= 120) {
     return (
-      <div className="mb-3 flex items-center gap-2 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-3.5 py-1.5 shadow-[0_0_18px_rgba(250,204,21,0.12)]">
-        <Clock3 className="h-3.5 w-3.5 text-yellow-400" />
-
-        <div className="flex items-center gap-1.5 whitespace-nowrap">
-          <span className="hidden md:inline text-[11px] font-bold uppercase tracking-wide text-yellow-400/80">
-            Palpite fecha em
-          </span>
-
-          <span className="text-sm md:text-base font-black text-yellow-300 tabular-nums leading-none">
-            {formatDeadlineTime(minutesUntilDeadline)}
-          </span>
-        </div>
+      <div className="inline-flex h-5 items-center gap-1 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-2">
+        <Clock3 className="h-3 w-3 text-yellow-400" />
+        <span className="text-[10px] font-black uppercase text-yellow-300 tabular-nums">
+          {formatDeadlineTime(minutesUntilDeadline)}
+        </span>
       </div>
     );
   }
 
   return null;
+}
+
+function MatchLogo({
+  src,
+  alt,
+}: {
+  src?: string | null;
+  alt: string;
+}) {
+  return (
+    <img
+      src={src ?? ""}
+      alt={alt}
+      className="h-8 w-8 object-contain md:h-12 md:w-12"
+      onError={(e) => {
+        (e.target as HTMLImageElement).style.display = "none";
+      }}
+    />
+  );
 }
 
 export default function MatchesPage() {
@@ -165,25 +180,25 @@ export default function MatchesPage() {
 
   return (
     <Layout>
-      <div className="px-4 pt-4 pb-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="w-full max-w-full overflow-hidden px-3 pt-3 pb-4 md:p-6 space-y-3 md:space-y-6">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-foreground">
             Jogos
           </h1>
 
-          <p className="text-muted-foreground text-sm mt-0.5">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Faça seus palpites antes do prazo
           </p>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-none">
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
           {filters.map(({ label, value }) => (
             <button
               key={value}
               onClick={() => setFilter(value)}
               data-testid={`filter-${value}`}
               className={cn(
-                "px-3.5 py-1.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0",
+                "h-9 rounded-xl px-3 text-sm font-semibold transition-colors",
                 filter === value
                   ? "bg-primary text-primary-foreground"
                   : "bg-card border border-card-border text-muted-foreground hover:text-foreground"
@@ -195,9 +210,9 @@ export default function MatchesPage() {
         </div>
 
         {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-2xl" />
+          <div className="space-y-2.5">
+            {[...Array(7)].map((_, i) => (
+              <Skeleton key={i} className="h-[102px] rounded-2xl" />
             ))}
           </div>
         ) : (
@@ -208,109 +223,65 @@ export default function MatchesPage() {
               return (
                 <Link key={m.id} href={`/matches/${m.id}`}>
                   <div
-                    className="bg-card border border-card-border rounded-2xl p-4 hover:bg-muted/20 active:scale-[0.99] cursor-pointer transition-all"
+                    className="w-full max-w-full overflow-hidden rounded-2xl border border-card-border bg-card p-3 transition-all hover:bg-muted/20 active:scale-[0.99] md:p-4"
                     data-testid={`match-card-${m.id}`}
                   >
-                    <div className="flex items-center justify-start mb-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
                       <StatusBadge status={m.status} matchDate={m.matchDate} />
+                      <DeadlineBadge matchDate={m.matchDate} status={m.status} />
                     </div>
 
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
-                        <img
-                          src={m.homeLogo ?? ""}
-                          alt={m.homeTeam}
-                          className="w-10 h-10 md:w-12 md:h-12 object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display =
-                              "none";
-                          }}
-                        />
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      <div className="flex min-w-0 flex-col items-center gap-1">
+                        <MatchLogo src={m.homeLogo} alt={m.homeTeam} />
 
-                        <span className="text-xs md:text-sm font-semibold text-foreground text-center leading-tight line-clamp-2">
+                        <span className="line-clamp-2 max-w-full text-center text-[12px] font-black leading-tight text-foreground md:text-sm">
                           {m.homeTeam}
                         </span>
                       </div>
 
-                      <div className="flex-shrink-0 flex flex-col items-center justify-center px-2">
+                      <div className="flex min-w-[82px] flex-col items-center justify-center">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          {format(new Date(m.matchDate), "dd MMM", {
+                            locale: ptBR,
+                          })}
+                        </p>
+
                         {hasScore ? (
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="text-center">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                {format(new Date(m.matchDate), "dd MMM", {
-                                  locale: ptBR,
-                                })}
-                              </p>
-
-                              <p className="mt-0.5 text-base md:text-lg font-black text-foreground tabular-nums leading-none">
-                                {format(new Date(m.matchDate), "HH:mm")}
-                              </p>
-                            </div>
-
-                            <div
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-                              style={{
-                                background: "rgba(255,255,255,0.05)",
-                              }}
-                            >
-                              <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
+                          <div className="mt-1 rounded-xl bg-background/50 px-3 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl font-black leading-none text-foreground tabular-nums md:text-3xl">
                                 {m.homeScore}
                               </span>
 
-                              <span className="text-base text-muted-foreground/60 font-light">
+                              <span className="text-sm font-bold text-muted-foreground/60">
                                 ×
                               </span>
 
-                              <span className="text-2xl md:text-3xl font-black text-foreground tabular-nums">
+                              <span className="text-xl font-black leading-none text-foreground tabular-nums md:text-3xl">
                                 {m.awayScore}
                               </span>
                             </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center gap-2">
-                            <DeadlineLabel
-                              matchDate={m.matchDate}
-                              status={m.status}
-                            />
+                          <>
+                            <p className="mt-0.5 text-xl font-black leading-none text-foreground tabular-nums md:text-2xl">
+                              {format(new Date(m.matchDate), "HH:mm")}
+                            </p>
 
-                            <div className="text-center">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                {format(new Date(m.matchDate), "dd MMM", {
-                                  locale: ptBR,
-                                })}
-                              </p>
-
-                              <p className="mt-0.5 text-xl md:text-2xl font-black text-foreground tabular-nums leading-none">
-                                {format(new Date(m.matchDate), "HH:mm")}
-                              </p>
-                            </div>
-
-                            <div
-                              className="px-4 py-1.5 rounded-xl"
-                              style={{
-                                background: "rgba(255,255,255,0.04)",
-                              }}
-                            >
-                              <span className="text-sm font-bold text-muted-foreground/60">
+                            <div className="mt-2 rounded-lg bg-background/50 px-3 py-1">
+                              <span className="text-xs font-black uppercase text-muted-foreground/60">
                                 VS
                               </span>
                             </div>
-                          </div>
+                          </>
                         )}
                       </div>
 
-                      <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
-                        <img
-                          src={m.awayLogo ?? ""}
-                          alt={m.awayTeam}
-                          className="w-10 h-10 md:w-12 md:h-12 object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display =
-                              "none";
-                          }}
-                        />
+                      <div className="flex min-w-0 flex-col items-center gap-1">
+                        <MatchLogo src={m.awayLogo} alt={m.awayTeam} />
 
-                        <span className="text-xs md:text-sm font-semibold text-foreground text-center leading-tight line-clamp-2">
+                        <span className="line-clamp-2 max-w-full text-center text-[12px] font-black leading-tight text-foreground md:text-sm">
                           {m.awayTeam}
                         </span>
                       </div>
@@ -321,10 +292,10 @@ export default function MatchesPage() {
             })}
 
             {!matches.length && (
-              <div className="bg-card border border-card-border rounded-2xl p-12 text-center">
-                <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+              <div className="rounded-2xl border border-card-border bg-card p-8 text-center">
+                <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
 
-                <p className="text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Nenhum jogo disponível para palpite
                 </p>
               </div>
