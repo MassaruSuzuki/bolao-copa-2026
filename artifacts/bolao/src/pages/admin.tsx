@@ -46,6 +46,8 @@ import {
   ChevronDown,
   LockOpen,
   Lock,
+  KeyRound,
+  Loader2,
 } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
@@ -229,6 +231,10 @@ export default function AdminPage() {
   const [processingUser, setProcessingUser] = useState<number | null>(null);
   const [processingUnlock, setProcessingUnlock] = useState<number | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
+  const [resetPasswordUser, setResetPasswordUser] =
+    useState<ParticipantUser | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [editingPrediction, setEditingPrediction] = useState<number | null>(
@@ -607,6 +613,64 @@ export default function AdminPage() {
       });
     } finally {
       setSavingPrediction(null);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser) return;
+
+    if (!newPassword || newPassword.length < 6) {
+      toast({
+        title: "Senha inválida",
+        description: "A nova senha deve ter pelo menos 6 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setResettingPassword(true);
+
+    try {
+      const token = localStorage.getItem("bolao_token");
+
+      const res = await fetch(
+        `/api/admin/users/${resetPasswordUser.id}/password`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            password: newPassword,
+          }),
+        }
+      );
+
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Erro ao alterar senha");
+      }
+
+      toast({
+        title: "Senha alterada!",
+        description: `Senha de ${resetPasswordUser.name} atualizada com sucesso.`,
+      });
+
+      setResetPasswordUser(null);
+      setNewPassword("");
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description:
+          err instanceof Error ? err.message : "Erro ao alterar senha",
+        variant: "destructive",
+      });
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -1062,6 +1126,21 @@ export default function AdminPage() {
 
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {statusLabel(u.status)}
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 h-8 px-3 border-primary/30 text-primary hover:bg-primary/10"
+                            onClick={() => {
+                              setResetPasswordUser(u);
+                              setNewPassword("");
+                            }}
+                            disabled={processingUser === u.id}
+                            data-testid={`button-reset-password-${u.id}`}
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                            Senha
+                          </Button>
 
                           {u.status === "pending" && (
                             <>
@@ -1755,6 +1834,73 @@ export default function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog
+        open={!!resetPasswordUser}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordUser(null);
+            setNewPassword("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resetar senha</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Alterando senha de{" "}
+              <span className="font-semibold text-foreground">
+                {resetPasswordUser?.name}
+              </span>
+            </p>
+
+            <div className="space-y-1.5">
+              <Label>Nova senha</Label>
+              <Input
+                type="password"
+                placeholder="Digite a nova senha"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newPassword.length >= 6) {
+                    void handleResetPassword();
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Mínimo de 6 caracteres.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setResetPasswordUser(null);
+                setNewPassword("");
+              }}
+              disabled={resettingPassword}
+            >
+              Cancelar
+            </Button>
+
+            <Button
+              onClick={handleResetPassword}
+              disabled={resettingPassword || newPassword.length < 6}
+              className="gap-2"
+            >
+              {resettingPassword && (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              )}
+              {resettingPassword ? "Salvando..." : "Alterar senha"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </Layout>
   );
 }
