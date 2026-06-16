@@ -4,7 +4,10 @@ import { eq, ne } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 
+
 const router: IRouter = Router();
+
+
 
 router.get(
   "/admin/users",

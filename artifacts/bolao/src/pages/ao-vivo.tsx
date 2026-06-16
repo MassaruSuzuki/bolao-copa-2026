@@ -69,8 +69,8 @@ function toLiveShape(entries: RankingEntry[] | undefined): LiveRankingEntry[] {
 
 function sortRanking(entries: LiveRankingEntry[]) {
   return [...entries].sort((a, b) => {
-    const pointsA = a.projectedTotal ?? a.basePoints ?? 0;
-    const pointsB = b.projectedTotal ?? b.basePoints ?? 0;
+    const pointsA = a.liveBonus ?? 0;
+    const pointsB = b.liveBonus ?? 0;
 
     if (pointsB !== pointsA) return pointsB - pointsA;
 
@@ -78,12 +78,29 @@ function sortRanking(entries: LiveRankingEntry[]) {
   });
 }
 
+function getPoints(entry: LiveRankingEntry) {
+  return entry.liveBonus ?? 0;
+}
+
+function getSharedPosition(
+  entries: LiveRankingEntry[],
+  currentIndex: number
+) {
+  const currentPoints = getPoints(entries[currentIndex]);
+
+  const firstIndexWithSamePoints = entries.findIndex(
+    (entry) => getPoints(entry) === currentPoints
+  );
+
+  return firstIndexWithSamePoints + 1;
+}
+
 function ScoreLegend() {
   return (
-    <div className="space-y-1.5 text-[11px] text-muted-foreground">
-      <p className="truncate">🟡🟡🟡🟡🟡 Placar exato (+3pts)</p>
-      <p className="truncate">🟡🟡🟡🟡⚫ Vencedor ou empate (+1pt)</p>
-      <p className="truncate">🔴⚫⚫⚫⚫ Errou</p>
+    <div className="space-y-2 text-[11px] text-muted-foreground">
+      <p className="truncate">🟢🟢🟢🟢🟢 Placar exato (+3 pts)</p>
+      <p className="truncate">🟡🟡🟡🟡🟡 Acertou vencedor ou empate (+1 pt)</p>
+      <p className="truncate">🔴🔴🔴🔴🔴 Errou (0 pts)</p>
     </div>
   );
 }
@@ -99,6 +116,8 @@ function StaticRankingList({
     <div className="w-full max-w-full overflow-hidden divide-y divide-border">
       {entries.map((entry, index) => {
         const isCurrentUser = entry.userId === currentUserId;
+        const bonus = entry.liveBonus ?? 0;
+        const position = getSharedPosition(entries, index);
 
         return (
           <div
@@ -110,7 +129,7 @@ function StaticRankingList({
           >
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted text-xs font-black text-muted-foreground">
-                {index + 1}
+                {position}
               </div>
 
               <div className="min-w-0">
@@ -119,21 +138,28 @@ function StaticRankingList({
                 </p>
 
                 <p className="truncate text-xs text-muted-foreground">
-                  {entry.hasPrediction
-                    ? `Palpite: ${entry.predHome ?? "-"} x ${
-                        entry.predAway ?? "-"
-                      }`
-                    : "sem palpite"}
+                  Participante da partida
                 </p>
               </div>
             </div>
 
             <div className="flex-shrink-0 text-right">
-              <p className="text-lg font-black text-primary tabular-nums">
-                {entry.liveBonus ?? 0}
+              <p
+                className={cn(
+                  "text-2xl font-black tabular-nums",
+                  bonus >= 3
+                    ? "text-emerald-400"
+                    : bonus >= 1
+                      ? "text-yellow-400"
+                      : "text-primary"
+                )}
+              >
+                {bonus > 0 ? `+${bonus}` : bonus}
               </p>
 
-              <p className="text-[10px] text-muted-foreground">pts</p>
+              <p className="text-[10px] text-muted-foreground">
+                {bonus} pt{bonus === 1 ? "" : "s"}
+              </p>
             </div>
           </div>
         );

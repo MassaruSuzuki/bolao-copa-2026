@@ -51,7 +51,7 @@ import {
 } from "lucide-react";
 
 type MatchStatus = "upcoming" | "live" | "finished";
-type AdminTab = "participantes" | "jogos" | "palpites";
+type AdminTab = "participantes" | "jogos" | "registros";
 
 interface EditState {
   id: number;
@@ -115,7 +115,7 @@ type AdminMatch = {
   homeScore?: number | null;
   awayScore?: number | null;
   youtubeUrl?: string | null;
-  predictionUnlocked?: boolean;
+  matchConfigActive?: boolean;
 };
 
 function useAdminUsers() {
@@ -155,7 +155,7 @@ function useAdminPredictions() {
       });
 
       if (!res.ok) {
-        throw new Error("Erro ao carregar palpites");
+        throw new Error("Erro ao carregar registros");
       }
 
       return res.json() as Promise<AdminPrediction[]>;
@@ -216,7 +216,7 @@ export default function AdminPage() {
     if (
       saved === "participantes" ||
       saved === "jogos" ||
-      saved === "palpites"
+      saved === "registros"
     ) {
       return saved;
     }
@@ -229,23 +229,15 @@ export default function AdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncingLive, setSyncingLive] = useState(false);
   const [processingUser, setProcessingUser] = useState<number | null>(null);
-  const [processingUnlock, setProcessingUnlock] = useState<number | null>(null);
+  const [processingConfig, setProcessingUnlock] = useState<number | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
   const [resetPasswordUser, setResetPasswordUser] =
     useState<ParticipantUser | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [resettingPassword, setResettingPassword] = useState(false);
 
-  const [adminEditMode, setAdminEditMode] = useState(false);
-  const [editingPrediction, setEditingPrediction] = useState<number | null>(
-    null
-  );
-  const [savingPrediction, setSavingPrediction] = useState<number | null>(null);
-  const [predictionForm, setPredictionForm] = useState({
-    homeGoals: "",
-    awayGoals: "",
-    updatedAt: "",
-  });
+  // Modo de edição manual de registros removido do frontend.
+  // Alterações sensíveis devem ficar somente no backend/admin autorizado.
 
   const { data: participants, isLoading: loadingUsers } = useAdminUsers();
   const { data: predictions, isLoading: loadingPredictions } =
@@ -271,68 +263,21 @@ export default function AdminPage() {
   const createMutation = useCreateMatch();
   const updateMutation = useUpdateMatch();
 
-  const adminMatches = ((matches as AdminMatch[] | undefined) ?? []).sort(
-    (a, b) =>
-      new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
-  );
+  const adminMatches = (((matches as Array<AdminMatch & { predictionUnlocked?: boolean }> | undefined) ?? [])
+    .map((match) => ({
+      ...match,
+      matchConfigActive:
+        match.matchConfigActive ?? match.predictionUnlocked ?? false,
+    }))
+    .sort(
+      (a, b) =>
+        new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
+    ));
 
 
   useEffect(() => {
     localStorage.setItem("admin_tab", activeTab);
   }, [activeTab]);
-
-  useEffect(() => {
-    let buffer = "";
-
-    const SECRET_CODE = "marquinhos250499";
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!user?.isAdmin) return;
-
-      const ignoredKeys = [
-        "Shift",
-        "Control",
-        "Alt",
-        "Meta",
-        "CapsLock",
-        "Tab",
-      ];
-
-      if (ignoredKeys.includes(e.key)) return;
-
-      buffer += e.key.toLowerCase();
-
-      if (buffer.length > SECRET_CODE.length) {
-        buffer = buffer.slice(-SECRET_CODE.length);
-      }
-
-      if (buffer === SECRET_CODE) {
-        buffer = "";
-
-        setAdminEditMode((prev) => {
-          const next = !prev;
-
-          if (!next) {
-            setEditingPrediction(null);
-            setPredictionForm({
-              homeGoals: "",
-              awayGoals: "",
-              updatedAt: "",
-            });
-          }
-
-          return next;
-        });
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [user?.isAdmin]);
-
   if (!user?.isAdmin) {
     setLocation("/dashboard");
     return null;
@@ -454,9 +399,9 @@ export default function AdminPage() {
     }
   };
 
-  const handleUnlockPredictions = async (matchId: number) => {
+  const handleActivateMatchConfig = async (matchId: number) => {
     const confirmUnlock = window.confirm(
-      "Deseja liberar palpites para esta partida para TODOS os participantes?"
+      "Deseja ativar esta configuração para esta partida?"
     );
 
     if (!confirmUnlock) return;
@@ -481,12 +426,12 @@ export default function AdminPage() {
       } | null;
 
       if (!res.ok) {
-        throw new Error(data?.error ?? "Erro ao liberar palpites");
+        throw new Error(data?.error ?? "Erro ao ativar configuração");
       }
 
       toast({
-        title: "Palpites liberados!",
-        description: "Todos os usuários podem palpitar nesta partida.",
+        title: "Configuração ativada!",
+        description: "A configuração foi aplicada com sucesso.",
       });
 
       qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
@@ -494,7 +439,7 @@ export default function AdminPage() {
       toast({
         title: "Erro",
         description:
-          err instanceof Error ? err.message : "Erro ao liberar palpites",
+          err instanceof Error ? err.message : "Erro ao ativar configuração",
         variant: "destructive",
       });
     } finally {
@@ -502,9 +447,9 @@ export default function AdminPage() {
     }
   };
 
-  const handleLockPredictions = async (matchId: number) => {
+  const handleDeactivateMatchConfig = async (matchId: number) => {
     const confirmLock = window.confirm(
-      "Deseja travar novamente os palpites desta partida?"
+      "Deseja desativar esta configuração para esta partida?"
     );
 
     if (!confirmLock) return;
@@ -526,12 +471,12 @@ export default function AdminPage() {
       } | null;
 
       if (!res.ok) {
-        throw new Error(data?.error ?? "Erro ao travar palpites");
+        throw new Error(data?.error ?? "Erro ao desativar configuração");
       }
 
       toast({
-        title: "Palpites travados!",
-        description: "A liberação foi removida desta partida.",
+        title: "Configuração desativada!",
+        description: "A configuração foi removida com sucesso.",
       });
 
       qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
@@ -539,7 +484,7 @@ export default function AdminPage() {
       toast({
         title: "Erro",
         description:
-          err instanceof Error ? err.message : "Erro ao travar palpites",
+          err instanceof Error ? err.message : "Erro ao desativar configuração",
         variant: "destructive",
       });
     } finally {
@@ -592,11 +537,11 @@ export default function AdminPage() {
       } | null;
 
       if (!res.ok) {
-        throw new Error(data?.error ?? "Erro ao atualizar palpite");
+        throw new Error(data?.error ?? "Erro ao atualizar registro");
       }
 
       toast({
-        title: "Palpite atualizado!",
+        title: "Registro atualizado!",
         description: "A alteração foi salva com sucesso.",
       });
 
@@ -608,7 +553,7 @@ export default function AdminPage() {
       toast({
         title: "Erro",
         description:
-          err instanceof Error ? err.message : "Erro ao atualizar palpite",
+          err instanceof Error ? err.message : "Erro ao atualizar registro",
         variant: "destructive",
       });
     } finally {
@@ -924,7 +869,7 @@ export default function AdminPage() {
               </h1>
 
               <p className="text-muted-foreground text-sm">
-                Gerencie participantes, jogos e palpites
+                Gerencie participantes, jogos e registros
               </p>
             </div>
           </div>
@@ -941,7 +886,7 @@ export default function AdminPage() {
             </Button>
           )}
 
-          {activeTab === "palpites" && (
+          {activeTab === "registros" && (
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="outline"
@@ -1051,14 +996,14 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("palpites")}
+            onClick={() => setActiveTab("registros")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "palpites"
+              activeTab === "registros"
                 ? "text-[#1a1200]"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             style={
-              activeTab === "palpites"
+              activeTab === "registros"
                 ? {
                     background:
                       "linear-gradient(135deg, hsl(43,74%,52%) 0%, hsl(38,80%,44%) 100%)",
@@ -1068,7 +1013,7 @@ export default function AdminPage() {
             }
           >
             <FileText className="w-4 h-4" />
-            Palpites
+            Registros
           </button>
         </div>
 
@@ -1202,7 +1147,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {activeTab === "palpites" && (
+        {activeTab === "registros" && (
           <div className="space-y-3">
             {loadingPredictions || loadingUsers || loadingMatches ? (
               <div className="space-y-2">
@@ -1251,8 +1196,8 @@ export default function AdminPage() {
                         <Badge className="bg-primary/20 text-primary border-primary/30">
                           {group.predictions.length}{" "}
                           {group.predictions.length === 1
-                            ? "palpite"
-                            : "palpites"}
+                            ? "registro"
+                            : "registros"}
                         </Badge>
 
                         <ChevronDown
@@ -1267,12 +1212,10 @@ export default function AdminPage() {
                       <div className="border-t border-border divide-y divide-border">
                         {group.predictions.length === 0 ? (
                           <div className="px-4 py-6 text-sm text-muted-foreground text-center">
-                            Este participante ainda não fez nenhum palpite.
+                            Este participante ainda não fez nenhum registro.
                           </div>
                         ) : (
                           group.predictions.map((p) => {
-                            const isEditing = editingPrediction === p.id;
-
                             return (
                               <div
                                 key={p.id}
@@ -1291,46 +1234,9 @@ export default function AdminPage() {
                                     <span className="font-medium text-foreground">
                                       {p.homeTeam}
                                     </span>
-
-                                    {!isEditing && (
-                                      <span className="font-bold text-primary">
-                                        {p.homeGoals} × {p.awayGoals}
-                                      </span>
-                                    )}
-
-                                    {isEditing && (
-                                      <div className="flex items-center gap-2">
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          className="w-16 h-8 text-center"
-                                          value={predictionForm.homeGoals}
-                                          onChange={(e) =>
-                                            setPredictionForm((prev) => ({
-                                              ...prev,
-                                              homeGoals: e.target.value,
-                                            }))
-                                          }
-                                        />
-
-                                        <span className="font-bold text-muted-foreground">
-                                          ×
-                                        </span>
-
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          className="w-16 h-8 text-center"
-                                          value={predictionForm.awayGoals}
-                                          onChange={(e) =>
-                                            setPredictionForm((prev) => ({
-                                              ...prev,
-                                              awayGoals: e.target.value,
-                                            }))
-                                          }
-                                        />
-                                      </div>
-                                    )}
+                                    <span className="font-bold text-primary">
+                                      {p.homeGoals} × {p.awayGoals}
+                                    </span>
 
                                     <span className="font-medium text-foreground">
                                       {p.awayTeam}
@@ -1354,83 +1260,7 @@ export default function AdminPage() {
                                         locale: ptBR,
                                       }
                                     )}
-                                  </p>
-
-                                  {isEditing && (
-                                    <div className="mt-2 max-w-xs space-y-1.5">
-                                      <Label className="text-xs text-muted-foreground">
-                                        Data/hora da atualização
-                                      </Label>
-
-                                      <Input
-                                        type="datetime-local"
-                                        value={predictionForm.updatedAt}
-                                        onChange={(e) =>
-                                          setPredictionForm((prev) => ({
-                                            ...prev,
-                                            updatedAt: e.target.value,
-                                          }))
-                                        }
-                                      />
-                                    </div>
-                                  )}
-
-                                  {adminEditMode && (
-                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                      {isEditing ? (
-                                        <>
-                                          <Button
-                                            size="sm"
-                                            onClick={() =>
-                                              handleSavePrediction(p.id)
-                                            }
-                                            disabled={savingPrediction === p.id}
-                                          >
-                                            {savingPrediction === p.id
-                                              ? "Salvando..."
-                                              : "Salvar"}
-                                          </Button>
-
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => {
-                                              setEditingPrediction(null);
-                                              setPredictionForm({
-                                                homeGoals: "",
-                                                awayGoals: "",
-                                                updatedAt: "",
-                                              });
-                                            }}
-                                            disabled={savingPrediction === p.id}
-                                          >
-                                            Cancelar
-                                          </Button>
-                                        </>
-                                      ) : (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="gap-1.5 h-8"
-                                          onClick={() => {
-                                            setEditingPrediction(p.id);
-                                            setPredictionForm({
-                                              homeGoals: String(p.homeGoals),
-                                              awayGoals: String(p.awayGoals),
-                                              updatedAt: format(
-                                                new Date(p.updatedAt),
-                                                "yyyy-MM-dd'T'HH:mm"
-                                              ),
-                                            });
-                                          }}
-                                        >
-                                          <Pencil className="w-3.5 h-3.5" />
-                                          Editar palpite
-                                        </Button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                  </p>                                </div>
 
                                 <div className="text-right flex-shrink-0">
                                   <Badge variant="secondary" className="mb-1">
@@ -1438,7 +1268,7 @@ export default function AdminPage() {
                                   </Badge>
 
                                   <p className="text-xs text-muted-foreground">
-                                    Palpite feito em{" "}
+                                    Registro feito em{" "}
                                     {format(
                                       new Date(p.updatedAt),
                                       "dd/MM HH:mm",
@@ -1534,40 +1364,40 @@ export default function AdminPage() {
                         </Badge>
                       )}
 
-                      {m.predictionUnlocked && (
+                      {m.status !== "finished" && m.matchConfigActive && (
                         <>
                           <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                            Palpites Liberados
+                            Configuração ativa
                           </Badge>
 
                           <Button
                             variant="outline"
                             size="sm"
                             className="gap-1.5 h-8 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                            onClick={() => handleLockPredictions(m.id)}
-                            disabled={processingUnlock === m.id}
+                            onClick={() => handleDeactivateMatchConfig(m.id)}
+                            disabled={processingConfig === m.id}
                           >
                             <Lock className="w-3.5 h-3.5" />
-                            {processingUnlock === m.id
-                              ? "Travando..."
-                              : "Travar Palpites"}
+                            {processingConfig === m.id
+                              ? "Desativando..."
+                              : "Desativar"}
                           </Button>
                         </>
                       )}
 
-                      {m.status === "upcoming" && !m.predictionUnlocked && (
+                      {m.status === "upcoming" && !m.matchConfigActive && (
                         <Button
                           variant="outline"
                           size="sm"
                           className="gap-1.5 h-8 border-green-500/30 text-green-400 hover:bg-green-500/10"
-                          onClick={() => handleUnlockPredictions(m.id)}
-                          disabled={processingUnlock === m.id}
-                          data-testid={`button-unlock-predictions-${m.id}`}
+                          onClick={() => handleActivateMatchConfig(m.id)}
+                          disabled={processingConfig === m.id}
+                          data-testid={`button-match-config-${m.id}`}
                         >
                           <LockOpen className="w-3.5 h-3.5" />
-                          {processingUnlock === m.id
-                            ? "Liberando..."
-                            : "Liberar Palpites"}
+                          {processingConfig === m.id
+                            ? "Ativando..."
+                            : "Ativar"}
                         </Button>
                       )}
 

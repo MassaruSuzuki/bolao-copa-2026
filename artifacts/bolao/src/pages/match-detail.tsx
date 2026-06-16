@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Lock, Users, LockOpen, Trash2 } from "lucide-react";
+import { ArrowLeft, Lock, Users, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -29,8 +29,6 @@ type MatchWithUnlock = {
   status: string;
   homeScore?: number | null;
   awayScore?: number | null;
-  predictionUnlocked?: boolean;
-  privateUnlockedForMe?: boolean;
   predictions?: Array<{
     id: number;
     userId: number;
@@ -152,15 +150,8 @@ const { data: rawMyPredictions = [] } = useListMyPredictions();
     ? differenceInMinutes(new Date(match.matchDate), new Date()) <= 60
     : true;
 
-  const isUnlockedByAdmin =
-    match?.predictionUnlocked === true || match?.privateUnlockedForMe === true;
-
-  const isPrivateUnlocked = match?.privateUnlockedForMe === true;
-
   const isLocked =
-    !match ||
-    (match.status !== "upcoming" && !isPrivateUnlocked) ||
-    (deadlineReached && !isUnlockedByAdmin);
+    !match || match.status !== "upcoming" || deadlineReached;
 
   const alreadyHasPrediction = !!myPred;
   const canCreatePrediction = !isLocked && !alreadyHasPrediction;
@@ -298,12 +289,7 @@ const { data: rawMyPredictions = [] } = useListMyPredictions();
             <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={match.status} />
 
-              {isUnlockedByAdmin && (
-                <Badge className="bg-green-500/20 text-green-400 border-green-500/30 gap-1">
-                  <LockOpen className="w-3 h-3" />
-                  {isPrivateUnlocked ? "Liberado para você" : "Palpites liberados"}
-                </Badge>
-              )}
+
             </div>
 
             <span className="text-xs text-muted-foreground">
@@ -373,20 +359,11 @@ const { data: rawMyPredictions = [] } = useListMyPredictions();
             {isLocked && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Lock className="w-3.5 h-3.5" />
-                {match.status === "live"
-                  ? "Jogo em andamento"
-                  : match.status === "finished"
-                    ? "Jogo encerrado"
-                    : "Prazo encerrado"}
+                Palpites indisponíveis
               </div>
             )}
 
-            {!isLocked && deadlineReached && isUnlockedByAdmin && (
-              <div className="flex items-center gap-1.5 text-xs text-green-400">
-                <LockOpen className="w-3.5 h-3.5" />
-                {isPrivateUnlocked ? "Liberado para você" : "Liberado pelo admin"}
-              </div>
-            )}
+
           </div>
 
           {alreadyHasPrediction ? (
@@ -423,7 +400,7 @@ const { data: rawMyPredictions = [] } = useListMyPredictions();
                 Você já registrou seu palpite para esta partida.
               </p>
 
-              {!isLocked && (
+              {match.status !== "finished" && !isLocked && (
                 <Button
                   variant="destructive"
                   className="w-full gap-2"

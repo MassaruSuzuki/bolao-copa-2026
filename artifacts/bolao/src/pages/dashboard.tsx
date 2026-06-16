@@ -441,7 +441,7 @@ export default function DashboardPage() {
         `}
       </style>
 
-      <div className="p-3 pb-24 md:p-6 md:pb-6 space-y-5 md:space-y-6">
+      <div className="w-full max-w-[1700px] mx-auto p-3 pb-24 md:p-6 md:pb-6 space-y-5 md:space-y-6">
         <div className="hidden md:block">
           <p className="text-sm text-muted-foreground">
             Olá,{" "}

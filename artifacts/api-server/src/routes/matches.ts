@@ -20,6 +20,7 @@ const router: IRouter = Router();
 type MatchStatus = "upcoming" | "live" | "finished";
 
 const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+const DEADLINE_MINUTES = 60;
 
 function getAutoStatus(match: {
   status: string;
@@ -47,6 +48,11 @@ function getAutoStatus(match: {
   return "upcoming";
 }
 
+function isDeadlineReached(matchDate: Date) {
+  const diffMs = matchDate.getTime() - Date.now();
+  return diffMs <= DEADLINE_MINUTES * 60 * 1000;
+}
+
 function toMatchJson(match: typeof matchesTable.$inferSelect) {
   return {
     ...match,
@@ -56,11 +62,28 @@ function toMatchJson(match: typeof matchesTable.$inferSelect) {
   };
 }
 
+function toPublicMatchJson(match: typeof matchesTable.$inferSelect) {
+  return {
+    id: match.id,
+    externalId: match.externalId,
+    homeTeam: match.homeTeam,
+    awayTeam: match.awayTeam,
+    homeLogo: match.homeLogo,
+    awayLogo: match.awayLogo,
+    matchDate: match.matchDate.toISOString(),
+    status: getAutoStatus(match),
+    homeScore: match.homeScore,
+    awayScore: match.awayScore,
+    youtubeUrl: match.youtubeUrl,
+    createdAt: match.createdAt.toISOString(),
+  };
+}
+
 async function hasPrivateUnlock(userId: number, matchId: number) {
   const now = new Date();
 
   const [privateUnlock] = await db
-    .select()
+    .select({ id: predictionPrivateUnlocksTable.id })
     .from(predictionPrivateUnlocksTable)
     .where(
       and(
@@ -94,13 +117,7 @@ router.get("/matches", async (req, res): Promise<void> => {
     ? withAutoStatus.filter((m) => m.status === status)
     : withAutoStatus;
 
-  res.json(
-    filtered.map((m) => ({
-      ...m,
-      matchDate: m.matchDate.toISOString(),
-      createdAt: m.createdAt.toISOString(),
-    }))
-  );
+  res.json(filtered.map((m) => toPublicMatchJson(m)));
 });
 
 router.post(
@@ -151,10 +168,15 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const privateUnlockedForMe = await hasPrivateUnlock(
-    req.user!.userId,
-    match.id
-  );
+  const autoStatus = getAutoStatus(match);
+  const deadlineReached = isDeadlineReached(match.matchDate);
+  const privateUnlockedForMe = await hasPrivateUnlock(req.user!.userId, match.id);
+
+  const canPredict =
+    autoStatus === "upcoming" &&
+    (!deadlineReached ||
+      match.predictionUnlocked === true ||
+      privateUnlockedForMe === true);
 
   const preds = await db
     .select({
@@ -181,9 +203,12 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
     )
     .where(eq(predictionsTable.matchId, params.data.id));
 
+  const safeMatch = toPublicMatchJson(match);
+
   res.json({
-    ...toMatchJson(match),
-    privateUnlockedForMe,
+    ...safeMatch,
+    status: autoStatus,
+    canPredict,
     predictions: preds.map((p) => ({
       id: p.id,
       userId: p.userId,
@@ -482,7 +507,7 @@ router.get("/matches/:id/chat", requireAuth, async (req, res): Promise<void> => 
     .orderBy(matchChatMessagesTable.createdAt);
 
   res.json({
-    chatLocked: match.chatLocked,
+    chatAvailable: !match.chatLocked,
     messages: messages.map((m) => ({
       ...m,
       createdAt: m.createdAt.toISOString(),
@@ -530,16 +555,9 @@ router.post("/matches/:id/chat", requireAuth, async (req, res): Promise<void> =>
 
   const autoStatus = getAutoStatus(match);
 
-  if (autoStatus !== "live") {
+  if (autoStatus !== "live" || match.chatLocked) {
     res.status(403).json({
-      error: "O chat só fica aberto durante jogos ao vivo",
-    });
-    return;
-  }
-
-  if (match.chatLocked) {
-    res.status(403).json({
-      error: "O chat foi bloqueado pelo administrador",
+      error: "Chat indisponível no momento",
     });
     return;
   }
