@@ -12,7 +12,7 @@ import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-const DEADLINE_MINUTES = 60;
+const DEADLINE_MINUTES = 15;
 
 function toIsoPrediction<T extends { createdAt: Date; updatedAt: Date }>(
   prediction: T
