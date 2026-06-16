@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { isSameDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 import type { RankingEntry } from "@workspace/api-client-react";
 
 const BR_TIMEZONE = "America/Sao_Paulo";
@@ -268,22 +269,32 @@ export default function DashboardPage() {
     };
   }, [hasLiveMatch, qc]);
 
-  const rankingEntries = (
-    hasLiveMatch ? liveRanking ?? [] : toLiveShape(baseRanking)
-  ).slice(0, 8);
+  const rankingEntries = useMemo(() => {
+    const entries = hasLiveMatch ? liveRanking ?? [] : toLiveShape(baseRanking);
+
+    let lastPoints: number | null = null;
+    let currentPosition = 0;
+
+    return entries.slice(0, 8).map((entry) => {
+      const points = getPoints(entry);
+
+      if (points !== lastPoints) {
+        currentPosition += 1;
+        lastPoints = points;
+      }
+
+      return {
+        ...entry,
+        position: currentPosition,
+      };
+    });
+  }, [baseRanking, hasLiveMatch, liveRanking]);
 
   const rankingLoading = hasLiveMatch ? loadingLive : false;
 
-  const leaderPoints =
-    rankingEntries.length > 0 ? getPoints(rankingEntries[0]) : 0;
+  const leaders = rankingEntries.filter((entry) => entry.position === 1);
 
-  const leaders = rankingEntries.filter(
-    (entry) => getPoints(entry) === leaderPoints
-  );
-
-  const otherPlaces = rankingEntries.filter(
-    (entry) => getPoints(entry) !== leaderPoints
-  );
+  const otherPlaces = rankingEntries.filter((entry) => entry.position > 1);
 
   const stats = [
     {
@@ -361,6 +372,71 @@ export default function DashboardPage() {
           .dashboard-flip-stat {
             animation: dashboardFlipStat 520ms ease-out;
             transform-origin: center;
+          }
+
+          @keyframes podiumShine {
+            0% {
+              background-position: -200% center;
+            }
+
+            100% {
+              background-position: 200% center;
+            }
+          }
+
+          .top1-name {
+            background: linear-gradient(
+              90deg,
+              #b45309,
+              #f59e0b,
+              #fde68a,
+              #ffffff,
+              #fde68a,
+              #f59e0b,
+              #b45309
+            );
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: podiumShine 7s linear infinite;
+            text-shadow: 0 0 12px rgba(250, 204, 21, 0.35);
+          }
+
+          .top2-name {
+            background: linear-gradient(
+              90deg,
+              #64748b,
+              #cbd5e1,
+              #ffffff,
+              #e2e8f0,
+              #94a3b8,
+              #64748b
+            );
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: podiumShine 7s linear infinite;
+            text-shadow: 0 0 10px rgba(226, 232, 240, 0.25);
+          }
+
+          .top3-name {
+            background: linear-gradient(
+              90deg,
+              #78350f,
+              #b45309,
+              #d97706,
+              #fbbf24,
+              #d97706,
+              #92400e
+            );
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: podiumShine 7s linear infinite;
+            text-shadow: 0 0 10px rgba(217, 119, 6, 0.3);
           }
         `}
       </style>
@@ -828,7 +904,7 @@ export default function DashboardPage() {
                             👑
                           </div>
 
-                          <p className="truncate text-sm font-bold text-yellow-400">
+                          <p className="top1-name truncate text-sm font-bold">
                             {entry.name}
                           </p>
                         </div>
@@ -847,30 +923,43 @@ export default function DashboardPage() {
 
                 {otherPlaces.length > 0 && (
                   <div className="divide-y divide-border">
-                    {otherPlaces.map((entry, index) => (
-                      <div
-                        key={entry.userId}
-                        className="px-5 py-3 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
-                            {leaders.length + index + 1}º
+                    {otherPlaces.map((entry) => {
+                      const position = entry.position;
+
+                      return (
+                        <div
+                          key={entry.userId}
+                          className="px-5 py-3 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-8 w-8 rounded-full bg-muted flex shrink-0 items-center justify-center text-xs font-bold text-muted-foreground">
+                              {position}º
+                            </div>
+
+                            <p
+                              className={cn(
+                                "truncate text-sm font-semibold",
+                                position === 2
+                                  ? "top2-name"
+                                  : position === 3
+                                    ? "top3-name"
+                                    : "text-foreground"
+                              )}
+                            >
+                              {entry.name}
+                            </p>
                           </div>
 
-                          <p className="text-sm font-semibold text-foreground">
-                            {entry.name}
-                          </p>
-                        </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-primary">
+                              {getPoints(entry)}
+                            </p>
 
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-primary">
-                            {getPoints(entry)}
-                          </p>
-
-                          <p className="text-xs text-muted-foreground">pts</p>
+                            <p className="text-xs text-muted-foreground">pts</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>

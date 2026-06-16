@@ -259,6 +259,71 @@ export default function TabelaPage() {
               opacity: 1;
             }
           }
+
+          @keyframes podiumShine {
+            0% {
+              background-position: -200% center;
+            }
+
+            100% {
+              background-position: 200% center;
+            }
+          }
+
+          .top1-name {
+            background: linear-gradient(
+              90deg,
+              #b45309,
+              #f59e0b,
+              #fde68a,
+              #ffffff,
+              #fde68a,
+              #f59e0b,
+              #b45309
+            );
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: podiumShine 7s linear infinite;
+            text-shadow: 0 0 12px rgba(250, 204, 21, 0.35);
+          }
+
+          .top2-name {
+            background: linear-gradient(
+              90deg,
+              #64748b,
+              #cbd5e1,
+              #ffffff,
+              #e2e8f0,
+              #94a3b8,
+              #64748b
+            );
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: podiumShine 7s linear infinite;
+            text-shadow: 0 0 10px rgba(226, 232, 240, 0.25);
+          }
+
+          .top3-name {
+            background: linear-gradient(
+              90deg,
+              #78350f,
+              #b45309,
+              #d97706,
+              #fbbf24,
+              #d97706,
+              #92400e
+            );
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: podiumShine 7s linear infinite;
+            text-shadow: 0 0 10px rgba(217, 119, 6, 0.3);
+          }
         `}
       </style>
 
@@ -434,11 +499,16 @@ export default function TabelaPage() {
 
                         <p
                           className={cn(
-                            "text-sm font-semibold truncate",
-                            isLeader && "text-yellow-400",
-                            isMe && !isLeader
-                              ? "text-primary"
-                              : "text-foreground"
+                            "text-sm font-black truncate",
+                            position === 1
+                              ? "top1-name"
+                              : position === 2
+                                ? "top2-name"
+                                : position === 3
+                                  ? "top3-name"
+                                  : isMe
+                                    ? "text-primary"
+                                    : "text-foreground"
                           )}
                         >
                           {entry.name}
@@ -569,10 +639,15 @@ export default function TabelaPage() {
                         <p
                           className={cn(
                             "truncate text-sm font-black leading-tight",
-                            isLeader && "text-yellow-400",
-                            isMe && !isLeader
-                              ? "text-primary"
-                              : "text-foreground"
+                            position === 1
+                              ? "top1-name"
+                              : position === 2
+                                ? "top2-name"
+                                : position === 3
+                                  ? "top3-name"
+                                  : isMe
+                                    ? "text-primary"
+                                    : "text-foreground"
                           )}
                         >
                           {entry.name}
