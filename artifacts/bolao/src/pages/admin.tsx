@@ -230,12 +230,6 @@ export default function AdminPage() {
   const [processingUnlock, setProcessingUnlock] = useState<number | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
 
-  const [privateUnlockMatchByUser, setPrivateUnlockMatchByUser] = useState<
-    Record<number, string>
-  >({});
-  const [processingPrivateUnlock, setProcessingPrivateUnlock] =
-    useState<number | null>(null);
-
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [editingPrediction, setEditingPrediction] = useState<number | null>(
     null
@@ -276,7 +270,6 @@ export default function AdminPage() {
       new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
   );
 
-  const upcomingMatches = adminMatches.filter((m) => m.status === "upcoming");
 
   useEffect(() => {
     localStorage.setItem("admin_tab", activeTab);
@@ -375,80 +368,6 @@ export default function AdminPage() {
       };
     })
     .sort((a, b) => a.userName.localeCompare(b.userName));
-
-  const handlePrivateUnlockPrediction = async (
-    userId: number,
-    userName: string
-  ) => {
-    const selectedMatchId = Number(privateUnlockMatchByUser[userId]);
-
-    if (!selectedMatchId || Number.isNaN(selectedMatchId)) {
-      toast({
-        title: "Selecione um jogo",
-        description: "Escolha o jogo que será liberado para este participante.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const selectedMatch = upcomingMatches.find((m) => m.id === selectedMatchId);
-
-    const confirmUnlock = window.confirm(
-      `Liberar palpite somente para ${userName}${
-        selectedMatch
-          ? ` no jogo ${selectedMatch.homeTeam} x ${selectedMatch.awayTeam}`
-          : ""
-      }? Nenhum outro participante será avisado.`
-    );
-
-    if (!confirmUnlock) return;
-
-    setProcessingPrivateUnlock(userId);
-
-    try {
-      const token = localStorage.getItem("bolao_token");
-
-      const res = await fetch("/api/admin/predictions/private-unlock", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId,
-          matchId: selectedMatchId,
-        }),
-      });
-
-      const data = (await res.json().catch(() => null)) as {
-        error?: string;
-        message?: string;
-      } | null;
-
-      if (!res.ok) {
-        throw new Error(data?.error ?? "Erro ao liberar palpite");
-      }
-
-      toast({
-        title: "Palpite liberado!",
-        description: `Liberação individual feita somente para ${userName}.`,
-      });
-
-      setPrivateUnlockMatchByUser((prev) => ({
-        ...prev,
-        [userId]: "",
-      }));
-    } catch (err) {
-      toast({
-        title: "Erro",
-        description:
-          err instanceof Error ? err.message : "Erro ao liberar palpite",
-        variant: "destructive",
-      });
-    } finally {
-      setProcessingPrivateUnlock(null);
-    }
-  };
 
   const handleSyncMatches = async () => {
     setSyncing(true);
@@ -1250,69 +1169,6 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
-                        <div
-                          className="flex items-center gap-2 flex-wrap justify-end"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Select
-                            value={
-                              privateUnlockMatchByUser[group.userId] ?? ""
-                            }
-                            onValueChange={(value) =>
-                              setPrivateUnlockMatchByUser((prev) => ({
-                                ...prev,
-                                [group.userId]: value,
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="w-[220px] h-8 text-xs">
-                              <SelectValue placeholder="Liberar jogo..." />
-                            </SelectTrigger>
-
-                            <SelectContent>
-                              {upcomingMatches.length === 0 ? (
-                                <SelectItem value="none" disabled>
-                                  Nenhum jogo em breve
-                                </SelectItem>
-                              ) : (
-                                upcomingMatches.map((m) => (
-                                  <SelectItem key={m.id} value={String(m.id)}>
-                                    {m.homeTeam} x {m.awayTeam} -{" "}
-                                    {format(
-                                      new Date(m.matchDate),
-                                      "dd/MM HH:mm",
-                                      {
-                                        locale: ptBR,
-                                      }
-                                    )}
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 gap-1.5 border-green-500/30 text-green-400 hover:bg-green-500/10"
-                            onClick={() =>
-                              handlePrivateUnlockPrediction(
-                                group.userId,
-                                group.userName
-                              )
-                            }
-                            disabled={
-                              processingPrivateUnlock === group.userId ||
-                              upcomingMatches.length === 0
-                            }
-                          >
-                            <LockOpen className="w-3.5 h-3.5" />
-                            {processingPrivateUnlock === group.userId
-                              ? "Liberando..."
-                              : "Liberar"}
-                          </Button>
-                        </div>
-
                         <Badge className="bg-primary/20 text-primary border-primary/30">
                           {group.predictions.length}{" "}
                           {group.predictions.length === 1
