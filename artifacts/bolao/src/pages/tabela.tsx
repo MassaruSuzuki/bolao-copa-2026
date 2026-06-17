@@ -46,6 +46,154 @@ function teamCode(team: string) {
     .toUpperCase();
 }
 
+type MatchStatus = "upcoming" | "live" | "finished" | string;
+
+type DisplayMatch = {
+  id: number;
+  homeTeam: string;
+  awayTeam: string;
+  matchDate: string;
+  status?: MatchStatus;
+};
+
+type TodayPointItem = {
+  matchId?: number | string;
+  id?: number | string;
+  homeTeam?: string;
+  awayTeam?: string;
+  matchDate?: string;
+  status?: MatchStatus;
+  points?: number | string | null;
+  isFinished?: boolean;
+};
+
+type TodayCubeItem = {
+  matchId: number;
+  label: string;
+  points: number | null;
+  isFinished: boolean;
+};
+
+type RankingEntryWithTodayPoints = {
+  todayGain?: number;
+  todayMatchPoints?: TodayPointItem[];
+  todayMatchesPoints?: TodayPointItem[];
+  matchPointsToday?: TodayPointItem[];
+  dailyMatchPoints?: TodayPointItem[];
+  finishedMatchPoints?: TodayPointItem[];
+  allMatchPoints?: TodayPointItem[];
+  visibleMatchPoints?: TodayPointItem[];
+};
+
+function numberValue(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getLocalDateKey(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function dedupeMatches(matches: DisplayMatch[]) {
+  const byId = new Map<number, DisplayMatch>();
+
+  matches.forEach((match) => {
+    const previous = byId.get(match.id);
+
+    if (!previous) {
+      byId.set(match.id, match);
+      return;
+    }
+
+    // Prioriza status mais atualizado quando o mesmo jogo aparece em mais de uma lista.
+    if (match.status === "finished" || previous.status !== "finished") {
+      byId.set(match.id, { ...previous, ...match });
+    }
+  });
+
+  return [...byId.values()];
+}
+
+function getPointsForMatch(
+  entry: RankingEntryWithTodayPoints,
+  matchId: number,
+) {
+  const possibleLists = [
+    entry.finishedMatchPoints,
+    entry.allMatchPoints,
+    entry.todayMatchPoints,
+    entry.todayMatchesPoints,
+    entry.matchPointsToday,
+    entry.dailyMatchPoints,
+  ];
+
+  for (const list of possibleLists) {
+    const found = list?.find((item) => {
+      const itemMatchId = item.matchId ?? item.id;
+      return Number(itemMatchId) === matchId;
+    });
+
+    if (found) {
+      return numberValue(found.points);
+    }
+  }
+
+  // IMPORTANTE:
+  // Não usa todayGain como fallback. todayGain é soma do período/dia e pode
+  // misturar jogos diferentes. A coluna precisa ser sincronizada por matchId.
+  return 0;
+}
+
+function buildTodayItems(
+  entry: RankingEntryWithTodayPoints,
+  matches: DisplayMatch[],
+  withParentheses = false,
+): TodayCubeItem[] {
+  // Preferência absoluta: backend já manda jogo + pontos sincronizados.
+  // Assim o rótulo AUT x JOR nunca recebe ponto de outro jogo.
+  if (entry.visibleMatchPoints && entry.visibleMatchPoints.length > 0) {
+    return entry.visibleMatchPoints.map((item) => {
+      const matchId = Number(item.matchId ?? item.id ?? 0);
+      const homeTeam = item.homeTeam ?? "";
+      const awayTeam = item.awayTeam ?? "";
+      const label = `${teamCode(homeTeam)} x ${teamCode(awayTeam)}`;
+      const isFinished = item.isFinished ?? item.status === "finished";
+      const points = isFinished ? numberValue(item.points) : null;
+
+      return {
+        matchId,
+        label: withParentheses ? `(${label})` : label,
+        points,
+        isFinished,
+      };
+    });
+  }
+
+  return matches.map((match) => {
+    const label = `${teamCode(match.homeTeam)} x ${teamCode(match.awayTeam)}`;
+    const isFinished = match.status === "finished";
+    const points = isFinished ? getPointsForMatch(entry, Number(match.id)) : null;
+
+    return {
+      matchId: Number(match.id),
+      label: withParentheses ? `(${label})` : label,
+      points,
+      isFinished,
+    };
+  });
+}
+
 function PositionBar({
   isLeader,
   isLast,
@@ -85,19 +233,16 @@ function PositionBadge({
   return <span className="text-muted-foreground">{position}</span>;
 }
 
-function TodayCube({
-  items,
-}: {
-  items: {
-    label: string;
-    points: number;
-  }[];
-}) {
+function TodayCube({ items }: { items: TodayCubeItem[] }) {
   const [index, setIndex] = useState(0);
+
+  const itemsSignature = items
+    .map((item) => `${item.matchId}:${item.points ?? "pending"}`)
+    .join("|");
 
   useEffect(() => {
     setIndex(0);
-  }, [items.length]);
+  }, [itemsSignature]);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -107,7 +252,7 @@ function TodayCube({
     }, 2600);
 
     return () => window.clearInterval(timer);
-  }, [items.length]);
+  }, [items.length, itemsSignature]);
 
   if (items.length === 0) {
     return <Minus className="w-3 h-3 mx-auto text-muted-foreground/25" />;
@@ -115,15 +260,36 @@ function TodayCube({
 
   const item = items[index];
 
+  const hasPoints = item.points !== null && item.points > 0;
+  const isZero = item.points === 0;
+
   return (
     <div className="flex justify-center [perspective:700px]">
       <span
-        key={`${item.label}-${item.points}-${index}`}
-        className="inline-flex max-w-full animate-[cubeFlip_650ms_ease-in-out] items-center justify-center gap-1 overflow-hidden rounded-full bg-emerald-500/10 px-1.5 py-1 text-[10px] font-black leading-none whitespace-nowrap [transform-origin:center_center]"
+        key={`${item.matchId}-${item.points ?? "pending"}-${index}`}
+        className={cn(
+          "inline-flex max-w-full animate-[cubeFlip_650ms_ease-in-out] items-center justify-center gap-1 overflow-hidden rounded-full px-1.5 py-1 text-[10px] font-black leading-none whitespace-nowrap [transform-origin:center_center]",
+          hasPoints
+            ? "bg-emerald-500/10"
+            : isZero
+              ? "bg-red-500/10"
+              : "bg-muted/40",
+        )}
       >
-        <span className="max-w-[64px] truncate text-muted-foreground">{item.label}</span>
-        <span className="text-emerald-400">▲</span>
-        <span className="text-emerald-400 tabular-nums">{item.points}</span>
+        <span className="max-w-[64px] truncate text-muted-foreground">
+          {item.label}
+        </span>
+
+        {hasPoints ? (
+          <>
+            <span className="text-emerald-400">▲</span>
+            <span className="text-emerald-400 tabular-nums">{item.points}</span>
+          </>
+        ) : isZero ? (
+          <span className="text-red-400 tabular-nums">0</span>
+        ) : (
+          <Minus className="w-3 h-3 text-muted-foreground/40" />
+        )}
       </span>
     </div>
   );
@@ -146,7 +312,7 @@ export default function TabelaPage() {
         queryKey: getListMatchesQueryKey({ status: "finished" }),
         refetchInterval: 10_000,
       },
-    }
+    },
   );
 
   const { data: liveMatches } = useListMatches(
@@ -156,20 +322,105 @@ export default function TabelaPage() {
         queryKey: getListMatchesQueryKey({ status: "live" }),
         refetchInterval: 10_000,
       },
-    }
+    },
   );
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const hasLiveMatch = (liveMatches ?? []).length > 0;
+  const { data: upcomingMatches } = useListMatches(
+    { status: "upcoming" },
+    {
+      query: {
+        queryKey: getListMatchesQueryKey({ status: "upcoming" }),
+        refetchInterval: 10_000,
+      },
+    },
+  );
 
-  const todayMatches = useMemo(() => {
-    return [...(finishedMatches ?? [])]
-      .filter((m) => m.matchDate.slice(0, 10) === todayStr)
+  const now = new Date();
+  const todayStr = getLocalDateKey(now);
+  const yesterdayStr = getLocalDateKey(addDays(now, -1));
+  const fallbackDisplayMatches = useMemo(() => {
+    const allMatches = dedupeMatches([
+      ...((finishedMatches ?? []) as DisplayMatch[]),
+      ...((liveMatches ?? []) as DisplayMatch[]),
+      ...((upcomingMatches ?? []) as DisplayMatch[]),
+    ]);
+
+    const todayMatches = allMatches
+      .filter((match) => getLocalDateKey(match.matchDate) === todayStr)
       .sort(
         (a, b) =>
-          new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime()
+          new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime(),
       );
-  }, [finishedMatches, todayStr]);
+
+    const todayAlreadyStarted = todayMatches.some((match) => {
+      return (
+        match.status === "live" ||
+        match.status === "finished" ||
+        new Date(match.matchDate).getTime() <= now.getTime()
+      );
+    });
+
+    if (todayAlreadyStarted) {
+      return todayMatches;
+    }
+
+    const yesterdayFinishedMatches = ((finishedMatches ?? []) as DisplayMatch[])
+      .filter((match) => getLocalDateKey(match.matchDate) === yesterdayStr)
+      .sort(
+        (a, b) =>
+          new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime(),
+      );
+
+    if (yesterdayFinishedMatches.length > 0) {
+      return yesterdayFinishedMatches;
+    }
+
+    // Caso não exista jogo finalizado ontem, usa o último dia com jogos finalizados.
+    const finishedBeforeToday = ((finishedMatches ?? []) as DisplayMatch[])
+      .filter((match) => getLocalDateKey(match.matchDate) < todayStr)
+      .sort(
+        (a, b) =>
+          new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime(),
+      );
+
+    const lastFinishedDate = finishedBeforeToday[0]
+      ? getLocalDateKey(finishedBeforeToday[0].matchDate)
+      : null;
+
+    if (!lastFinishedDate) {
+      return [];
+    }
+
+    return finishedBeforeToday
+      .filter((match) => getLocalDateKey(match.matchDate) === lastFinishedDate)
+      .sort(
+        (a, b) =>
+          new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime(),
+      );
+  }, [
+    finishedMatches,
+    liveMatches,
+    upcomingMatches,
+    todayStr,
+    yesterdayStr,
+    now,
+  ]);
+
+  const displayMatches = useMemo(() => {
+    const firstEntry = (ranking?.[0] as RankingEntryWithTodayPoints | undefined);
+
+    if (firstEntry?.visibleMatchPoints && firstEntry.visibleMatchPoints.length > 0) {
+      return firstEntry.visibleMatchPoints.map((item) => ({
+        id: Number(item.matchId ?? item.id ?? 0),
+        homeTeam: item.homeTeam ?? "",
+        awayTeam: item.awayTeam ?? "",
+        matchDate: item.matchDate ?? new Date().toISOString(),
+        status: item.status ?? (item.isFinished ? "finished" : "upcoming"),
+      }));
+    }
+
+    return fallbackDisplayMatches;
+  }, [ranking, fallbackDisplayMatches]);
 
   const sortedRanking = useMemo(() => {
     const sorted = [...(ranking ?? [])].sort((a, b) => {
@@ -367,7 +618,7 @@ export default function TabelaPage() {
         ) : (
           <>
             <div className="hidden md:block bg-card border border-card-border rounded-xl overflow-hidden">
-              {!hasLiveMatch && todayMatches.length > 0 && (
+              {displayMatches.length > 0 && (
                 <div
                   className="grid items-center px-4 pt-2 pb-0 gap-x-3 bg-muted/20"
                   style={{ gridTemplateColumns: COLS }}
@@ -377,7 +628,7 @@ export default function TabelaPage() {
                   <div />
 
                   <div className="col-span-4 flex items-center justify-center gap-3 pb-1 border-b border-border/40">
-                    {todayMatches.map((m) => (
+                    {displayMatches.map((m) => (
                       <span
                         key={m.id}
                         className="flex items-center gap-1 text-sm leading-none"
@@ -451,18 +702,11 @@ export default function TabelaPage() {
                     entry.exactScores -
                     entry.correctResults;
 
-                  const todayGain =
-                    (entry as { todayGain?: number }).todayGain ?? 0;
-
-                  const todayItems =
-                    !hasLiveMatch && todayGain > 0
-                      ? todayMatches.map((match) => ({
-                          label: `(${teamCode(match.homeTeam)} x ${teamCode(
-                            match.awayTeam
-                          )})`,
-                          points: todayGain,
-                        }))
-                      : [];
+                  const todayItems = buildTodayItems(
+                    entry as RankingEntryWithTodayPoints,
+                    displayMatches,
+                    true,
+                  );
 
                   return (
                     <div
@@ -477,14 +721,17 @@ export default function TabelaPage() {
                       className={cn(
                         "relative grid items-center px-4 py-3 border-b border-border last:border-0 will-change-transform gap-x-3",
                         isLeader && "bg-yellow-500/5",
-                        isMe ? "bg-primary/5" : "hover:bg-white/[0.02]"
+                        isMe ? "bg-primary/5" : "hover:bg-white/[0.02]",
                       )}
                       style={{ gridTemplateColumns: COLS }}
                     >
                       <PositionBar isLeader={isLeader} isLast={isLast} />
 
                       <div className="text-sm font-semibold text-center tabular-nums">
-                        <PositionBadge position={position} isLeader={isLeader} />
+                        <PositionBadge
+                          position={position}
+                          isLeader={isLeader}
+                        />
                       </div>
 
                       <div className="flex items-center gap-3 min-w-0">
@@ -508,7 +755,7 @@ export default function TabelaPage() {
                                   ? "top3-name"
                                   : isMe
                                     ? "text-primary"
-                                    : "text-foreground"
+                                    : "text-foreground",
                           )}
                         >
                           {entry.name}
@@ -531,7 +778,7 @@ export default function TabelaPage() {
                             "text-sm font-semibold tabular-nums",
                             entry.exactScores > 0
                               ? "text-yellow-400"
-                              : "text-muted-foreground/50"
+                              : "text-muted-foreground/50",
                           )}
                         >
                           {entry.exactScores}
@@ -544,7 +791,7 @@ export default function TabelaPage() {
                             "text-sm font-semibold tabular-nums",
                             entry.correctResults > 0
                               ? "text-primary"
-                              : "text-muted-foreground/50"
+                              : "text-muted-foreground/50",
                           )}
                         >
                           {entry.correctResults}
@@ -569,7 +816,7 @@ export default function TabelaPage() {
                               ? "text-yellow-400"
                               : isMe
                                 ? "text-primary"
-                                : "text-foreground"
+                                : "text-foreground",
                           )}
                         >
                           {entry.totalPoints}
@@ -593,18 +840,11 @@ export default function TabelaPage() {
                   entry.exactScores -
                   entry.correctResults;
 
-                const todayGain =
-                  (entry as { todayGain?: number }).todayGain ?? 0;
-
-                const todayItems =
-                  !hasLiveMatch && todayGain > 0
-                    ? todayMatches.map((match) => ({
-                        label: `${teamCode(match.homeTeam)} x ${teamCode(
-                          match.awayTeam
-                        )}`,
-                        points: todayGain,
-                      }))
-                    : [];
+                const todayItems = buildTodayItems(
+                  entry as RankingEntryWithTodayPoints,
+                  displayMatches,
+                  false,
+                );
 
                 return (
                   <div
@@ -616,14 +856,17 @@ export default function TabelaPage() {
                         : isLast
                           ? "border-red-500/25"
                           : "border-card-border",
-                      isMe && !isLeader && "border-primary/30 bg-primary/5"
+                      isMe && !isLeader && "border-primary/30 bg-primary/5",
                     )}
                   >
                     <PositionBar isLeader={isLeader} isLast={isLast} />
 
                     <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2.5">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-black">
-                        <PositionBadge position={position} isLeader={isLeader} />
+                        <PositionBadge
+                          position={position}
+                          isLeader={isLeader}
+                        />
                       </div>
 
                       <UserAvatar
@@ -647,7 +890,7 @@ export default function TabelaPage() {
                                   ? "top3-name"
                                   : isMe
                                     ? "text-primary"
-                                    : "text-foreground"
+                                    : "text-foreground",
                           )}
                         >
                           {entry.name}
@@ -675,7 +918,7 @@ export default function TabelaPage() {
                               ? "text-yellow-400"
                               : isMe
                                 ? "text-primary"
-                                : "text-foreground"
+                                : "text-foreground",
                           )}
                         >
                           {entry.totalPoints}
@@ -723,7 +966,7 @@ export default function TabelaPage() {
                             "mt-1 text-base font-black tabular-nums",
                             erros > 0
                               ? "text-red-400/80"
-                              : "text-muted-foreground/40"
+                              : "text-muted-foreground/40",
                           )}
                         >
                           {erros}
@@ -741,7 +984,7 @@ export default function TabelaPage() {
                               ? "text-yellow-400"
                               : isMe
                                 ? "text-primary"
-                                : "text-foreground"
+                                : "text-foreground",
                           )}
                         >
                           {entry.totalPoints}
@@ -758,7 +1001,7 @@ export default function TabelaPage() {
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground/60">
           <span>
             <strong className="text-muted-foreground">Hoje</strong> = Pontos
-            conquistados nos jogos encerrados hoje
+            sincronizados por jogo exibido
           </span>
 
           <span>

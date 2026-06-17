@@ -5,9 +5,8 @@ import {
   predictionsTable,
   usersTable,
   matchChatMessagesTable,
-  predictionPrivateUnlocksTable,
 } from "@workspace/db";
-import { eq, and, or, gt, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import {
   CreateMatchBody,
   GetMatchParams,
@@ -77,26 +76,6 @@ function toPublicMatchJson(match: typeof matchesTable.$inferSelect) {
     youtubeUrl: match.youtubeUrl,
     createdAt: match.createdAt.toISOString(),
   };
-}
-
-async function hasPrivateUnlock(userId: number, matchId: number) {
-  const now = new Date();
-
-  const [privateUnlock] = await db
-    .select({ id: predictionPrivateUnlocksTable.id })
-    .from(predictionPrivateUnlocksTable)
-    .where(
-      and(
-        eq(predictionPrivateUnlocksTable.userId, userId),
-        eq(predictionPrivateUnlocksTable.matchId, matchId),
-        or(
-          isNull(predictionPrivateUnlocksTable.expiresAt),
-          gt(predictionPrivateUnlocksTable.expiresAt, now)
-        )
-      )
-    );
-
-  return Boolean(privateUnlock);
 }
 
 router.get("/matches", async (req, res): Promise<void> => {
@@ -170,16 +149,10 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
 
   const autoStatus = getAutoStatus(match);
   const deadlineReached = isDeadlineReached(match.matchDate);
-  const privateUnlockedForMe = await hasPrivateUnlock(
-    req.user!.userId,
-    match.id
-  );
 
   const canPredict =
     autoStatus === "upcoming" &&
-    (!deadlineReached ||
-      match.predictionUnlocked === true ||
-      privateUnlockedForMe === true);
+    (!deadlineReached || match.predictionUnlocked === true);
 
   const preds = await db
     .select({

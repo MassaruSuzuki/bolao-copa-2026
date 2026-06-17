@@ -4,33 +4,122 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
+const APP_TIME_ZONE = "America/Sao_Paulo";
+
+type Winner = "home" | "away" | "draw";
+
+type MatchPointItem = {
+  matchId: number;
+  homeTeam: string;
+  awayTeam: string;
+  matchDate: string;
+  status: string;
+  points: number | null;
+  hasPrediction: boolean;
+  isFinished: boolean;
+};
 
 function calcPoints(
   predHome: number,
   predAway: number,
   realHome: number,
-  realAway: number
+  realAway: number,
 ): number {
   if (predHome === realHome && predAway === realAway) return 3;
 
-  const predWinner =
+  const predWinner: Winner =
     predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
 
-  const realWinner =
+  const realWinner: Winner =
     realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
 
-  if (predWinner === realWinner) return 1;
+  return predWinner === realWinner ? 1 : 0;
+}
 
-  return 0;
+function getDateKey(value: Date | string): string {
+  const date = value instanceof Date ? value : new Date(value);
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function addDaysKey(date: Date, amount: number): string {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + amount);
+  return getDateKey(copy);
+}
+
+function toTimestamp(value: Date | string): number {
+  return new Date(value).getTime();
+}
+
+function isMatchFinished(match: { status: string; homeScore: number | null; awayScore: number | null }) {
+  return match.status === "finished" && match.homeScore !== null && match.awayScore !== null;
+}
+
+/**
+ * Escolhe quais jogos aparecem na coluna "Hoje".
+ *
+ * Regra final:
+ * - A lista que gira mostra SOMENTE jogos que já aconteceram/encerraram.
+ * - Antes de existir jogo encerrado hoje: mostra os jogos encerrados de ontem.
+ * - Depois que houver jogo encerrado hoje: mostra somente os jogos encerrados de hoje.
+ * - Nunca envia jogos scheduled/live/futuros para a tabela.
+ */
+function pickVisibleMatches<
+  T extends {
+    matchDate: Date | string;
+    status: string;
+    homeScore: number | null;
+    awayScore: number | null;
+  },
+>(matches: T[]) {
+  const now = new Date();
+  const todayKey = getDateKey(now);
+  const yesterdayKey = addDaysKey(now, -1);
+
+  const sortedFinishedMatches = [...matches]
+    .filter(isMatchFinished)
+    .sort((a, b) => toTimestamp(a.matchDate) - toTimestamp(b.matchDate));
+
+  const todayFinishedMatches = sortedFinishedMatches.filter(
+    (match) => getDateKey(match.matchDate) === todayKey,
+  );
+
+  if (todayFinishedMatches.length > 0) {
+    return todayFinishedMatches;
+  }
+
+  const yesterdayFinishedMatches = sortedFinishedMatches.filter(
+    (match) => getDateKey(match.matchDate) === yesterdayKey,
+  );
+
+  if (yesterdayFinishedMatches.length > 0) {
+    return yesterdayFinishedMatches;
+  }
+
+  const lastFinished = sortedFinishedMatches[sortedFinishedMatches.length - 1];
+  if (!lastFinished) return [];
+
+  const lastFinishedKey = getDateKey(lastFinished.matchDate);
+
+  return sortedFinishedMatches.filter(
+    (match) => getDateKey(match.matchDate) === lastFinishedKey,
+  );
 }
 
 /**
  * TABELA GERAL
  *
- * Regra:
- * - Só soma pontos de partidas encerradas.
- * - Partida ao vivo NÃO entra no total oficial.
- * - Quando a partida virar "finished", os pontos entram automaticamente.
+ * Regras:
+ * - Total oficial soma somente jogos finished.
+ * - Jogo live não entra no total oficial.
+ * - A coluna "Hoje" NÃO usa todayGain para cada jogo.
+ * - A coluna "Hoje" recebe visibleMatchPoints já sincronizado pelo backend.
  */
 router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
   try {
@@ -38,30 +127,20 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
       .select()
       .from(usersTable)
       .where(
-        and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved"))
+        and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved")),
       );
 
-    const finishedMatches = await db
-      .select()
-      .from(matchesTable)
-      .where(eq(matchesTable.status, "finished"));
-
+    const allMatches = await db.select().from(matchesTable);
     const allPredictions = await db.select().from(predictionsTable);
 
-    const now = new Date();
+    const predictionByUserAndMatch = new Map<string, (typeof allPredictions)[number]>();
 
-    const todayStart = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-    );
+    for (const prediction of allPredictions) {
+      predictionByUserAndMatch.set(`${prediction.userId}:${prediction.matchId}`, prediction);
+    }
 
-    const tomorrowStart = new Date(
-      todayStart.getTime() + 24 * 60 * 60 * 1000
-    );
-
-    const todayFinishedMatches = finishedMatches.filter((match) => {
-      const matchDate = new Date(match.matchDate);
-      return matchDate >= todayStart && matchDate < tomorrowStart;
-    });
+    const finishedMatches = allMatches.filter(isMatchFinished);
+    const visibleMatches = pickVisibleMatches(allMatches);
 
     const ranking = allUsers.map((user) => {
       let totalPoints = 0;
@@ -70,51 +149,70 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
       let totalPredictions = 0;
       let todayGain = 0;
 
+      const allMatchPoints: MatchPointItem[] = [];
+
       for (const match of finishedMatches) {
-        if (match.homeScore === null || match.awayScore === null) continue;
-
-        const pred = allPredictions.find(
-          (prediction) =>
-            prediction.userId === user.id && prediction.matchId === match.id
-        );
-
-        if (!pred) {
-          totalPredictions++;
-          continue;
-        }
+        const pred = predictionByUserAndMatch.get(`${user.id}:${match.id}`);
+        let points = 0;
+        const hasPrediction = Boolean(pred);
 
         totalPredictions++;
 
-        const points = calcPoints(
-          pred.homeGoals,
-          pred.awayGoals,
-          match.homeScore,
-          match.awayScore
-        );
+        if (pred) {
+          points = calcPoints(
+            pred.homeGoals,
+            pred.awayGoals,
+            match.homeScore as number,
+            match.awayScore as number,
+          );
 
-        totalPoints += points;
+          totalPoints += points;
 
-        if (points === 3) exactScores++;
-        if (points === 1) correctResults++;
+          if (points === 3) exactScores++;
+          if (points === 1) correctResults++;
+        }
+
+        allMatchPoints.push({
+          matchId: match.id,
+          homeTeam: match.homeTeam,
+          awayTeam: match.awayTeam,
+          matchDate: match.matchDate.toISOString(),
+          status: match.status,
+          points,
+          hasPrediction,
+          isFinished: true,
+        });
       }
 
-      for (const match of todayFinishedMatches) {
-        if (match.homeScore === null || match.awayScore === null) continue;
+      const visibleMatchPoints: MatchPointItem[] = visibleMatches.map((match) => {
+        const pred = predictionByUserAndMatch.get(`${user.id}:${match.id}`);
+        const finished = isMatchFinished(match);
+        let points: number | null = null;
 
-        const pred = allPredictions.find(
-          (prediction) =>
-            prediction.userId === user.id && prediction.matchId === match.id
-        );
+        if (finished) {
+          points = pred
+            ? calcPoints(
+                pred.homeGoals,
+                pred.awayGoals,
+                match.homeScore as number,
+                match.awayScore as number,
+              )
+            : 0;
 
-        if (!pred) continue;
+          todayGain += points;
+        }
 
-        todayGain += calcPoints(
-          pred.homeGoals,
-          pred.awayGoals,
-          match.homeScore,
-          match.awayScore
-        );
-      }
+        return {
+          matchId: match.id,
+          homeTeam: match.homeTeam,
+          awayTeam: match.awayTeam,
+          matchDate: match.matchDate.toISOString(),
+          status: match.status,
+          points,
+          hasPrediction: Boolean(pred),
+          isFinished: finished,
+        };
+      });
 
       return {
         userId: user.id,
@@ -124,24 +222,25 @@ router.get("/ranking", requireAuth, async (_req, res): Promise<void> => {
         exactScores,
         correctResults,
         totalPredictions,
+
+        // Soma apenas dos jogos visíveis que já terminaram. Use só como resumo.
         todayGain,
+
+        // Lista definitiva para a coluna Hoje: jogo e ponto vêm juntos.
+        visibleMatchPoints,
+
+        // Compatibilidade com versões anteriores do frontend.
+        todayMatchPoints: visibleMatchPoints,
+        allMatchPoints,
+        finishedMatchPoints: allMatchPoints,
       };
     });
 
     ranking.sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) {
-        return b.totalPoints - a.totalPoints;
-      }
-
-      if (b.exactScores !== a.exactScores) {
-        return b.exactScores - a.exactScores;
-      }
-
-      if (b.correctResults !== a.correctResults) {
-        return b.correctResults - a.correctResults;
-      }
-
-      return a.name.localeCompare(b.name);
+      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      if (b.exactScores !== a.exactScores) return b.exactScores - a.exactScores;
+      if (b.correctResults !== a.correctResults) return b.correctResults - a.correctResults;
+      return a.name.localeCompare(b.name, "pt-BR");
     });
 
     res.json(ranking);
@@ -165,7 +264,7 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
       .select()
       .from(usersTable)
       .where(
-        and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved"))
+        and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved")),
       );
 
     const liveMatches = await db
@@ -176,7 +275,7 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
     const allPredictions = await db.select().from(predictionsTable);
 
     const scoredLiveMatches = liveMatches.filter(
-      (match) => match.homeScore !== null && match.awayScore !== null
+      (match) => match.homeScore !== null && match.awayScore !== null,
     );
 
     const ranking = allUsers.map((user) => {
@@ -187,8 +286,7 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
       for (const liveMatch of scoredLiveMatches) {
         const pred = allPredictions.find(
           (prediction) =>
-            prediction.userId === user.id &&
-            prediction.matchId === liveMatch.id
+            prediction.userId === user.id && prediction.matchId === liveMatch.id,
         );
 
         if (!pred) continue;
@@ -198,18 +296,11 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
         const homeScore = liveMatch.homeScore as number;
         const awayScore = liveMatch.awayScore as number;
 
-        const points = calcPoints(
-          pred.homeGoals,
-          pred.awayGoals,
-          homeScore,
-          awayScore
-        );
-
+        const points = calcPoints(pred.homeGoals, pred.awayGoals, homeScore, awayScore);
         livePoints += points;
 
         const proximity =
-          Math.abs(pred.homeGoals - homeScore) +
-          Math.abs(pred.awayGoals - awayScore);
+          Math.abs(pred.homeGoals - homeScore) + Math.abs(pred.awayGoals - awayScore);
 
         proximityTotal = (proximityTotal ?? 0) + proximity;
       }
@@ -218,17 +309,10 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
         userId: user.id,
         name: user.name,
         avatarUrl: user.avatarUrl ?? null,
-
         livePoints,
-
-        /**
-         * Compatibilidade com frontend antigo.
-         * Todos representam apenas pontos do ao vivo.
-         */
         basePoints: 0,
         liveBonus: livePoints,
         projectedTotal: livePoints,
-
         liveMatchId: scoredLiveMatches[0]?.id ?? liveMatches[0]?.id ?? null,
         predHome: null,
         predAway: null,
@@ -240,9 +324,7 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
     });
 
     ranking.sort((a, b) => {
-      if (b.livePoints !== a.livePoints) {
-        return b.livePoints - a.livePoints;
-      }
+      if (b.livePoints !== a.livePoints) return b.livePoints - a.livePoints;
 
       if (a.proximity !== null && b.proximity !== null) {
         return a.proximity - b.proximity;
@@ -251,7 +333,7 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
       if (a.proximity !== null) return -1;
       if (b.proximity !== null) return 1;
 
-      return a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name, "pt-BR");
     });
 
     res.json(ranking);
@@ -263,11 +345,6 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
 
 /**
  * PARTIDAS AO VIVO COM PARTICIPANTES
- *
- * Regra:
- * - Cada partida ao vivo mostra pontos separados.
- * - Pontos começam em 0.
- * - Só calcula pontos se a partida tiver placar.
  */
 router.get(
   "/ranking/live-matches",
@@ -278,7 +355,7 @@ router.get(
         .select()
         .from(usersTable)
         .where(
-          and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved"))
+          and(eq(usersTable.isAdmin, false), eq(usersTable.status, "approved")),
         );
 
       const liveMatches = await db
@@ -290,12 +367,12 @@ router.get(
 
       const result = liveMatches.map((match) => {
         const matchPredictions = allPredictions.filter(
-          (prediction) => prediction.matchId === match.id
+          (prediction) => prediction.matchId === match.id,
         );
 
         const participants = allUsers.map((user) => {
           const pred = matchPredictions.find(
-            (prediction) => prediction.userId === user.id
+            (prediction) => prediction.userId === user.id,
           );
 
           if (!pred) {
@@ -319,7 +396,7 @@ router.get(
               pred.homeGoals,
               pred.awayGoals,
               match.homeScore,
-              match.awayScore
+              match.awayScore,
             );
 
             proximity =
@@ -342,10 +419,7 @@ router.get(
         participants.sort((a, b) => {
           if (a.hasPrediction && !b.hasPrediction) return -1;
           if (!a.hasPrediction && b.hasPrediction) return 1;
-
-          if (b.points !== a.points) {
-            return b.points - a.points;
-          }
+          if (b.points !== a.points) return b.points - a.points;
 
           if (a.proximity !== null && b.proximity !== null) {
             return a.proximity - b.proximity;
@@ -354,7 +428,7 @@ router.get(
           if (a.proximity !== null) return -1;
           if (b.proximity !== null) return 1;
 
-          return a.name.localeCompare(b.name);
+          return a.name.localeCompare(b.name, "pt-BR");
         });
 
         return {
@@ -375,7 +449,7 @@ router.get(
       console.error("Erro ao buscar partidas ao vivo:", error);
       res.status(500).json({ message: "Erro ao buscar partidas ao vivo." });
     }
-  }
+  },
 );
 
 export default router;

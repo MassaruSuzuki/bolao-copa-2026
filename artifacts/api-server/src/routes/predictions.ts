@@ -4,9 +4,8 @@ import {
   predictionsTable,
   matchesTable,
   usersTable,
-  predictionPrivateUnlocksTable,
 } from "@workspace/db";
-import { eq, and, desc, or, gt, isNull } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { UpsertPredictionBody } from "@workspace/api-zod";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 
@@ -24,26 +23,6 @@ function toIsoPrediction<T extends { createdAt: Date; updatedAt: Date }>(
   };
 }
 
-async function hasPrivatePredictionUnlock(userId: number, matchId: number) {
-  const now = new Date();
-
-  const [unlock] = await db
-    .select({ id: predictionPrivateUnlocksTable.id })
-    .from(predictionPrivateUnlocksTable)
-    .where(
-      and(
-        eq(predictionPrivateUnlocksTable.userId, userId),
-        eq(predictionPrivateUnlocksTable.matchId, matchId),
-        or(
-          isNull(predictionPrivateUnlocksTable.expiresAt),
-          gt(predictionPrivateUnlocksTable.expiresAt, now)
-        )
-      )
-    );
-
-  return Boolean(unlock);
-}
-
 function getPredictionDeadline(matchDate: Date) {
   return new Date(matchDate.getTime() - DEADLINE_MINUTES * 60 * 1000);
 }
@@ -52,91 +31,25 @@ async function canUserSubmitPrediction(params: {
   userId: number;
   match: typeof matchesTable.$inferSelect;
 }) {
-  const { userId, match } = params;
+  const { match } = params;
 
   if (match.status === "finished") {
     return false;
   }
 
-  const privateAccess = await hasPrivatePredictionUnlock(userId, match.id);
-  const globalAccess = match.predictionUnlocked === true;
+  if (match.predictionUnlocked === true) {
+    return true;
+  }
 
-  if (match.status !== "upcoming" && !privateAccess) {
+  if (match.status !== "upcoming") {
     return false;
   }
 
   const now = new Date();
   const deadline = getPredictionDeadline(match.matchDate);
 
-  if (now >= deadline && !globalAccess && !privateAccess) {
-    return false;
-  }
-
-  return true;
+  return now < deadline;
 }
-
-router.post(
-  "/admin/predictions/private-unlock",
-  requireAuth,
-  requireAdmin,
-  async (req, res): Promise<void> => {
-    const userId = Number(req.body.userId);
-    const matchId = Number(req.body.matchId);
-    const adminId = req.user!.userId;
-
-    if (Number.isNaN(userId) || Number.isNaN(matchId)) {
-      res.status(400).json({ error: "Dados inválidos." });
-      return;
-    }
-
-    const [user] = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.id, userId));
-
-    if (!user) {
-      res.status(404).json({ error: "Registro não encontrado." });
-      return;
-    }
-
-    const [match] = await db
-      .select({ id: matchesTable.id })
-      .from(matchesTable)
-      .where(eq(matchesTable.id, matchId));
-
-    if (!match) {
-      res.status(404).json({ error: "Registro não encontrado." });
-      return;
-    }
-
-    await db
-      .insert(predictionPrivateUnlocksTable)
-      .values({
-        userId,
-        matchId,
-        createdByAdminId: adminId,
-        expiresAt: null,
-      })
-      .onConflictDoUpdate({
-        target: [
-          predictionPrivateUnlocksTable.userId,
-          predictionPrivateUnlocksTable.matchId,
-        ],
-        set: {
-          createdByAdminId: adminId,
-          createdAt: new Date(),
-          expiresAt: null,
-        },
-      });
-
-    res.json({
-      ok: true,
-      message: "Configuração aplicada com sucesso.",
-      userId,
-      matchId,
-    });
-  }
-);
 
 router.get(
   "/admin/predictions",
@@ -167,11 +80,11 @@ router.get(
       .orderBy(desc(predictionsTable.createdAt));
 
     res.json(
-      predictions.map((p) => ({
-        ...p,
-        matchDate: p.matchDate.toISOString(),
-        createdAt: p.createdAt.toISOString(),
-        updatedAt: p.updatedAt.toISOString(),
+      predictions.map((prediction) => ({
+        ...prediction,
+        matchDate: prediction.matchDate.toISOString(),
+        createdAt: prediction.createdAt.toISOString(),
+        updatedAt: prediction.updatedAt.toISOString(),
       }))
     );
   }
@@ -205,15 +118,13 @@ router.patch(
       .set({
         homeGoals,
         awayGoals,
-        updatedAt: req.body.updatedAt
-          ? new Date(req.body.updatedAt)
-          : new Date(),
+        updatedAt: new Date(),
       })
       .where(eq(predictionsTable.id, predictionId))
       .returning();
 
     if (!updated) {
-      res.status(404).json({ error: "Registro não encontrado." });
+      res.status(404).json({ error: "Palpite não encontrado." });
       return;
     }
 
@@ -267,12 +178,7 @@ router.post("/predictions", requireAuth, async (req, res): Promise<void> => {
         awayGoals,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(predictionsTable.userId, userId),
-          eq(predictionsTable.matchId, matchId)
-        )
-      )
+      .where(eq(predictionsTable.id, existingPrediction.id))
       .returning();
 
     res.json(toIsoPrediction(updated));
@@ -297,13 +203,12 @@ router.delete(
   requireAuth,
   async (req, res): Promise<void> => {
     const predictionId = Number(req.params.id);
+    const userId = req.user!.userId;
 
     if (Number.isNaN(predictionId)) {
       res.status(400).json({ error: "ID inválido." });
       return;
     }
-
-    const userId = req.user!.userId;
 
     const [existingPrediction] = await db
       .select()
@@ -316,7 +221,7 @@ router.delete(
       );
 
     if (!existingPrediction) {
-      res.status(404).json({ error: "Registro não encontrado." });
+      res.status(404).json({ error: "Palpite não encontrado." });
       return;
     }
 
@@ -356,12 +261,12 @@ router.delete(
 router.get("/predictions/my", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.userId;
 
-  const preds = await db
+  const predictions = await db
     .select()
     .from(predictionsTable)
     .where(eq(predictionsTable.userId, userId));
 
-  res.json(preds.map((p) => toIsoPrediction(p)));
+  res.json(predictions.map((prediction) => toIsoPrediction(prediction)));
 });
 
 export default router;
