@@ -50,6 +50,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
 type MatchStatus = "upcoming" | "live" | "finished";
 type AdminTab = "participantes" | "jogos" | "palpites";
 
@@ -124,7 +126,7 @@ function useAdminUsers() {
     queryFn: async () => {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch("/api/admin/users", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -148,7 +150,7 @@ function useAdminPredictions() {
     queryFn: async () => {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch("/api/admin/predictions", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/predictions`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -325,7 +327,7 @@ export default function AdminPage() {
     try {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch("/api/admin/sync-matches", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sync-matches`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -365,7 +367,7 @@ export default function AdminPage() {
     try {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch("/api/admin/sync-live", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/sync-live`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -411,7 +413,7 @@ export default function AdminPage() {
       const token = localStorage.getItem("bolao_token");
 
       const res = await fetch(
-        `/api/admin/matches/${matchId}/prediction-unlock`,
+        `${API_BASE_URL}/api/admin/matches/${matchId}/prediction-unlock`,
         {
           method: "PATCH",
           headers: {
@@ -458,7 +460,7 @@ export default function AdminPage() {
     try {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch(`/api/admin/matches/${matchId}/prediction-lock`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/matches/${matchId}/prediction-lock`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -508,7 +510,7 @@ export default function AdminPage() {
       const token = localStorage.getItem("bolao_token");
 
       const res = await fetch(
-        `/api/admin/users/${resetPasswordUser.id}/password`,
+        `${API_BASE_URL}/api/admin/users/${resetPasswordUser.id}/password`,
         {
           method: "PATCH",
           headers: {
@@ -554,7 +556,7 @@ export default function AdminPage() {
     try {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch(`/api/admin/users/${userId}/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/approve`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -584,7 +586,7 @@ export default function AdminPage() {
     try {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch(`/api/admin/users/${userId}/reject`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/reject`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -659,7 +661,7 @@ export default function AdminPage() {
     try {
       const token = localStorage.getItem("bolao_token");
 
-      const res = await fetch(`/api/admin/matches/${matchId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/matches/${matchId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
