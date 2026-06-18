@@ -1319,21 +1319,37 @@ export default function AdminPage() {
                         </>
                       )}
 
-                      {m.status === "upcoming" && !m.matchConfigActive && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 h-8 border-green-500/30 text-green-400 hover:bg-green-500/10"
-                          onClick={() => handleActivateMatchConfig(m.id)}
-                          disabled={processingConfig === m.id}
-                          data-testid={`button-match-config-${m.id}`}
-                        >
-                          <LockOpen className="w-3.5 h-3.5" />
-                          {processingConfig === m.id
-                            ? "Ativando..."
-                            : "Ativar"}
-                        </Button>
-                      )}
+                     {m.status === "upcoming" && m.matchConfigActive ? (
+  <>
+    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+      Liberado
+    </Badge>
+
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-1.5 h-8 border-red-500/30 text-red-400 hover:bg-red-500/10"
+      onClick={() => handleDeactivateMatchConfig(m.id)}
+      disabled={processingConfig === m.id}
+    >
+      <Lock className="w-3.5 h-3.5" />
+      {processingConfig === m.id ? "Fechando..." : "Fechar"}
+    </Button>
+  </>
+) : (
+  m.status === "upcoming" && (
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-1.5 h-8 border-green-500/30 text-green-400 hover:bg-green-500/10"
+      onClick={() => handleActivateMatchConfig(m.id)}
+      disabled={processingConfig === m.id}
+    >
+      <LockOpen className="w-3.5 h-3.5" />
+      {processingConfig === m.id ? "Liberando..." : "Ativar"}
+    </Button>
+  )
+)}
 
                       <Button
                         variant="ghost"

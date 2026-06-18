@@ -11,13 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { format, differenceInMinutes } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Lock, Users, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 type MatchWithUnlock = {
   id: number;
@@ -27,6 +29,8 @@ type MatchWithUnlock = {
   awayLogo?: string | null;
   matchDate: string;
   status: string;
+  canPredict?: boolean;
+  predictionUnlocked?: boolean;
   homeScore?: number | null;
   awayScore?: number | null;
   predictions?: Array<{
@@ -146,12 +150,7 @@ const { data: rawMyPredictions = [] } = useListMyPredictions();
 
   const upsertMutation = useUpsertPrediction();
 
-  const deadlineReached = match
-    ? differenceInMinutes(new Date(match.matchDate), new Date()) <= 60
-    : true;
-
-  const isLocked =
-    !match || match.status !== "upcoming" || deadlineReached;
+  const isLocked = !match?.canPredict;
 
   const alreadyHasPrediction = !!myPred;
   const canCreatePrediction = !isLocked && !alreadyHasPrediction;
@@ -217,7 +216,7 @@ const { data: rawMyPredictions = [] } = useListMyPredictions();
 
       const token = localStorage.getItem("bolao_token");
 
-      const response = await fetch(`/api/predictions/${myPred.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/predictions/${myPred.id}`, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),

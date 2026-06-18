@@ -19,7 +19,7 @@ const router: IRouter = Router();
 type MatchStatus = "upcoming" | "live" | "finished";
 
 const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
-const DEADLINE_MINUTES = 60;
+const DEADLINE_MINUTES = 15;
 
 function getAutoStatus(match: {
   status: string;
