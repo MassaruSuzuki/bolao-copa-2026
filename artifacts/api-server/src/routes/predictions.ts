@@ -202,23 +202,35 @@ router.delete(
   "/predictions/:id",
   requireAuth,
   async (req, res): Promise<void> => {
-    const predictionId = Number(req.params.id);
+    const id = Number(req.params.id);
     const userId = req.user!.userId;
 
-    if (Number.isNaN(predictionId)) {
+    if (Number.isNaN(id)) {
       res.status(400).json({ error: "ID inválido." });
       return;
     }
 
-    const [existingPrediction] = await db
+    let [existingPrediction] = await db
       .select()
       .from(predictionsTable)
       .where(
         and(
-          eq(predictionsTable.id, predictionId),
+          eq(predictionsTable.id, id),
           eq(predictionsTable.userId, userId)
         )
       );
+
+    if (!existingPrediction) {
+      [existingPrediction] = await db
+        .select()
+        .from(predictionsTable)
+        .where(
+          and(
+            eq(predictionsTable.matchId, id),
+            eq(predictionsTable.userId, userId)
+          )
+        );
+    }
 
     if (!existingPrediction) {
       res.status(404).json({ error: "Palpite não encontrado." });
@@ -238,7 +250,9 @@ router.delete(
     const allowed = await canUserSubmitPrediction({ userId, match });
 
     if (!allowed) {
-      res.status(403).json({ error: "Palpites indisponíveis." });
+      res.status(403).json({
+        error: "Não é possível excluir este palpite agora.",
+      });
       return;
     }
 
@@ -246,14 +260,15 @@ router.delete(
       .delete(predictionsTable)
       .where(
         and(
-          eq(predictionsTable.id, predictionId),
+          eq(predictionsTable.id, existingPrediction.id),
           eq(predictionsTable.userId, userId)
         )
       );
 
     res.json({
       ok: true,
-      deletedPredictionId: predictionId,
+      deletedPredictionId: existingPrediction.id,
+      matchId: existingPrediction.matchId,
     });
   }
 );
