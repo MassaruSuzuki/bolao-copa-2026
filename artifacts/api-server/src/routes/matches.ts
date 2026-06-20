@@ -150,9 +150,7 @@ router.get("/matches/:id", requireAuth, async (req, res): Promise<void> => {
   const autoStatus = getAutoStatus(match);
   const deadlineReached = isDeadlineReached(match.matchDate);
 
-  const canPredict =
-    autoStatus === "upcoming" &&
-    (!deadlineReached || match.predictionUnlocked === true);
+  const canPredict = autoStatus === "upcoming" && !deadlineReached;
 
   const preds = await db
     .select({
@@ -278,66 +276,6 @@ router.patch(
     }
 
     res.json(toAdminMatchJson(match));
-  }
-);
-
-router.patch(
-  "/admin/matches/:id/prediction-unlock",
-  requireAuth,
-  requireAdmin,
-  async (req, res): Promise<void> => {
-    const matchId = Number(req.params.id);
-
-    if (Number.isNaN(matchId)) {
-      res.status(400).json({ error: "ID inválido" });
-      return;
-    }
-
-    const [updated] = await db
-      .update(matchesTable)
-      .set({ predictionUnlocked: true })
-      .where(eq(matchesTable.id, matchId))
-      .returning();
-
-    if (!updated) {
-      res.status(404).json({ error: "Jogo não encontrado" });
-      return;
-    }
-
-    res.json({
-      success: true,
-      match: toAdminMatchJson(updated),
-    });
-  }
-);
-
-router.patch(
-  "/admin/matches/:id/prediction-lock",
-  requireAuth,
-  requireAdmin,
-  async (req, res): Promise<void> => {
-    const matchId = Number(req.params.id);
-
-    if (Number.isNaN(matchId)) {
-      res.status(400).json({ error: "ID inválido" });
-      return;
-    }
-
-    const [updated] = await db
-      .update(matchesTable)
-      .set({ predictionUnlocked: false })
-      .where(eq(matchesTable.id, matchId))
-      .returning();
-
-    if (!updated) {
-      res.status(404).json({ error: "Jogo não encontrado" });
-      return;
-    }
-
-    res.json({
-      success: true,
-      match: toAdminMatchJson(updated),
-    });
   }
 );
 

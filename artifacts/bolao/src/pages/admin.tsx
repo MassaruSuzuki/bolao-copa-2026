@@ -44,8 +44,6 @@ import {
   Clock,
   FileText,
   ChevronDown,
-  LockOpen,
-  Lock,
   KeyRound,
   Loader2,
 } from "lucide-react";
@@ -117,7 +115,6 @@ type AdminMatch = {
   homeScore?: number | null;
   awayScore?: number | null;
   youtubeUrl?: string | null;
-  matchConfigActive?: boolean;
 };
 
 function useAdminUsers() {
@@ -231,7 +228,6 @@ export default function AdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncingLive, setSyncingLive] = useState(false);
   const [processingUser, setProcessingUser] = useState<number | null>(null);
-  const [processingConfig, setProcessingUnlock] = useState<number | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<number[]>([]);
   const [resetPasswordUser, setResetPasswordUser] =
     useState<ParticipantUser | null>(null);
@@ -263,16 +259,10 @@ export default function AdminPage() {
   const createMutation = useCreateMatch();
   const updateMutation = useUpdateMatch();
 
-  const adminMatches = (((matches as Array<AdminMatch & { predictionUnlocked?: boolean }> | undefined) ?? [])
-    .map((match) => ({
-      ...match,
-      matchConfigActive:
-        match.matchConfigActive ?? match.predictionUnlocked ?? false,
-    }))
-    .sort(
-      (a, b) =>
-        new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
-    ));
+  const adminMatches = ((matches as AdminMatch[] | undefined) ?? []).sort(
+    (a, b) =>
+      new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
+  );
 
 
   useEffect(() => {
@@ -400,98 +390,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleActivateMatchConfig = async (matchId: number) => {
-    const confirmUnlock = window.confirm(
-      "Deseja ativar esta configuração para esta partida?"
-    );
-
-    if (!confirmUnlock) return;
-
-    setProcessingUnlock(matchId);
-
-    try {
-      const token = localStorage.getItem("bolao_token");
-
-      const res = await fetch(
-        `${API_BASE_URL}/api/admin/matches/${matchId}/prediction-unlock`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-
-      if (!res.ok) {
-        throw new Error(data?.error ?? "Erro ao ativar configuração");
-      }
-
-      toast({
-        title: "Configuração ativada!",
-        description: "A configuração foi aplicada com sucesso.",
-      });
-
-      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-    } catch (err) {
-      toast({
-        title: "Erro",
-        description:
-          err instanceof Error ? err.message : "Erro ao ativar configuração",
-        variant: "destructive",
-      });
-    } finally {
-      setProcessingUnlock(null);
-    }
-  };
-
-  const handleDeactivateMatchConfig = async (matchId: number) => {
-    const confirmLock = window.confirm(
-      "Deseja desativar esta configuração para esta partida?"
-    );
-
-    if (!confirmLock) return;
-
-    setProcessingUnlock(matchId);
-
-    try {
-      const token = localStorage.getItem("bolao_token");
-
-      const res = await fetch(`${API_BASE_URL}/api/admin/matches/${matchId}/prediction-lock`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-
-      if (!res.ok) {
-        throw new Error(data?.error ?? "Erro ao desativar configuração");
-      }
-
-      toast({
-        title: "Configuração desativada!",
-        description: "A configuração foi removida com sucesso.",
-      });
-
-      qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-    } catch (err) {
-      toast({
-        title: "Erro",
-        description:
-          err instanceof Error ? err.message : "Erro ao desativar configuração",
-        variant: "destructive",
-      });
-    } finally {
-      setProcessingUnlock(null);
-    }
-  };
   const handleResetPassword = async () => {
     if (!resetPasswordUser) return;
 
@@ -1298,58 +1196,7 @@ export default function AdminPage() {
                         </Badge>
                       )}
 
-                      {m.status !== "finished" && m.matchConfigActive && (
-                        <>
-                          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                            Configuração ativa
-                          </Badge>
 
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1.5 h-8 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                            onClick={() => handleDeactivateMatchConfig(m.id)}
-                            disabled={processingConfig === m.id}
-                          >
-                            <Lock className="w-3.5 h-3.5" />
-                            {processingConfig === m.id
-                              ? "Desativando..."
-                              : "Desativar"}
-                          </Button>
-                        </>
-                      )}
-
-                     {m.status === "upcoming" && m.matchConfigActive ? (
-  <>
-    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-      Liberado
-    </Badge>
-
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-1.5 h-8 border-red-500/30 text-red-400 hover:bg-red-500/10"
-      onClick={() => handleDeactivateMatchConfig(m.id)}
-      disabled={processingConfig === m.id}
-    >
-      <Lock className="w-3.5 h-3.5" />
-      {processingConfig === m.id ? "Fechando..." : "Fechar"}
-    </Button>
-  </>
-) : (
-  m.status === "upcoming" && (
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-1.5 h-8 border-green-500/30 text-green-400 hover:bg-green-500/10"
-      onClick={() => handleActivateMatchConfig(m.id)}
-      disabled={processingConfig === m.id}
-    >
-      <LockOpen className="w-3.5 h-3.5" />
-      {processingConfig === m.id ? "Liberando..." : "Ativar"}
-    </Button>
-  )
-)}
 
                       <Button
                         variant="ghost"
