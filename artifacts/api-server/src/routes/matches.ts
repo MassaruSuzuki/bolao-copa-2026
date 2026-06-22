@@ -27,21 +27,16 @@ function getAutoStatus(match: {
   homeScore: number | null;
   awayScore: number | null;
 }): MatchStatus {
-  if (match.status === "finished") return "finished";
-
-  const now = Date.now();
-  const kickoff = match.matchDate.getTime();
-
-  if (now >= kickoff && now <= kickoff + LIVE_WINDOW_MS) {
+  if (match.status === "live") {
     return "live";
   }
 
-  if (
-    now > kickoff + LIVE_WINDOW_MS &&
-    match.homeScore !== null &&
-    match.awayScore !== null
-  ) {
+  if (match.status === "finished") {
     return "finished";
+  }
+
+  if (match.status === "upcoming") {
+    return "upcoming";
   }
 
   return "upcoming";
