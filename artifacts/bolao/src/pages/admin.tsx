@@ -1045,7 +1045,7 @@ export default function AdminPage() {
                           </div>
                         ) : (
                           group.predictions.map((p) => {
-                            
+                            console.log("PREDICTION:", p);
 
                             return (
                               <div
@@ -1083,15 +1083,18 @@ export default function AdminPage() {
                                   </div>
 
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    Jogo:{" "}
-                                    {format(
-                                      new Date(p.matchDate),
-                                      "dd/MM HH:mm",
-                                      {
-                                        locale: ptBR,
-                                      }
-                                    )}
-                                  </p>
+  Jogo:{" "}
+  {p.matchDate &&
+  !isNaN(new Date(p.matchDate).getTime())
+    ? format(
+        new Date(p.matchDate),
+        "dd/MM HH:mm",
+        {
+          locale: ptBR,
+        }
+      )
+    : "Data inválida"}
+</p>
                                 </div>
 
                                 <div className="text-right flex-shrink-0">

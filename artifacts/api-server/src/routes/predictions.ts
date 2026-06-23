@@ -90,19 +90,15 @@ router.get(
 
         matchId: r.matchId,
 
-        match: {
-          homeTeam: r.homeTeam,
-          awayTeam: r.awayTeam,
-          homeLogo: r.homeLogo,
-          awayLogo: r.awayLogo,
-          matchDate: r.matchDate.toISOString(),
-          status: r.status,
-        },
+        homeTeam: r.homeTeam,
+awayTeam: r.awayTeam,
+homeLogo: r.homeLogo,
+awayLogo: r.awayLogo,
+matchDate: r.matchDate.toISOString(),
+status: r.status,
 
-        prediction: {
-          homeGoals: r.homeGoals,
-          awayGoals: r.awayGoals,
-        },
+homeGoals: r.homeGoals,
+awayGoals: r.awayGoals,
 
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
