@@ -278,50 +278,59 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
       (match) => match.homeScore !== null && match.awayScore !== null,
     );
 
-    const ranking = allUsers.map((user) => {
-      let livePoints = 0;
-      let proximityTotal: number | null = null;
-      let hasPrediction = false;
-
-      for (const liveMatch of scoredLiveMatches) {
+    const ranking = scoredLiveMatches.flatMap((liveMatch) =>
+      allUsers.map((user) => {
         const pred = allPredictions.find(
           (prediction) =>
-            prediction.userId === user.id && prediction.matchId === liveMatch.id,
+            prediction.userId === user.id &&
+            prediction.matchId === liveMatch.id,
         );
 
-        if (!pred) continue;
+        const hasPrediction = Boolean(pred);
 
-        hasPrediction = true;
+        let livePoints = 0;
+        let proximity: number | null = null;
 
-        const homeScore = liveMatch.homeScore as number;
-        const awayScore = liveMatch.awayScore as number;
+        if (
+          pred &&
+          liveMatch.homeScore !== null &&
+          liveMatch.awayScore !== null
+        ) {
+          livePoints = calcPoints(
+            pred.homeGoals,
+            pred.awayGoals,
+            liveMatch.homeScore,
+            liveMatch.awayScore,
+          );
 
-        const points = calcPoints(pred.homeGoals, pred.awayGoals, homeScore, awayScore);
-        livePoints += points;
+          proximity =
+            Math.abs(pred.homeGoals - liveMatch.homeScore) +
+            Math.abs(pred.awayGoals - liveMatch.awayScore);
+        }
 
-        const proximity =
-          Math.abs(pred.homeGoals - homeScore) + Math.abs(pred.awayGoals - awayScore);
+        return {
+          userId: user.id,
+          name: user.name,
+          avatarUrl: user.avatarUrl ?? null,
 
-        proximityTotal = (proximityTotal ?? 0) + proximity;
-      }
+          livePoints,
+          basePoints: 0,
+          liveBonus: livePoints,
+          projectedTotal: livePoints,
 
-      return {
-        userId: user.id,
-        name: user.name,
-        avatarUrl: user.avatarUrl ?? null,
-        livePoints,
-        basePoints: 0,
-        liveBonus: livePoints,
-        projectedTotal: livePoints,
-        liveMatchId: scoredLiveMatches[0]?.id ?? liveMatches[0]?.id ?? null,
-        predHome: null,
-        predAway: null,
-        currentHome: scoredLiveMatches[0]?.homeScore ?? null,
-        currentAway: scoredLiveMatches[0]?.awayScore ?? null,
-        proximity: proximityTotal,
-        hasPrediction,
-      };
-    });
+          liveMatchId: liveMatch.id,
+
+          predHome: pred?.homeGoals ?? null,
+          predAway: pred?.awayGoals ?? null,
+
+          currentHome: liveMatch.homeScore,
+          currentAway: liveMatch.awayScore,
+
+          proximity,
+          hasPrediction,
+        };
+      }),
+    );
 
     ranking.sort((a, b) => {
       if (b.livePoints !== a.livePoints) return b.livePoints - a.livePoints;
@@ -342,6 +351,7 @@ router.get("/ranking/live", requireAuth, async (_req, res): Promise<void> => {
     res.status(500).json({ message: "Erro ao buscar ranking ao vivo." });
   }
 });
+
 
 /**
  * PARTIDAS AO VIVO COM PARTICIPANTES

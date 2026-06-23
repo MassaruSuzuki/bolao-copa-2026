@@ -1,3 +1,4 @@
+
 import { Router, type IRouter } from "express";
 import {
   db,
@@ -33,17 +34,11 @@ async function canUserSubmitPrediction(params: {
 }) {
   const { match } = params;
 
-  if (match.status === "finished") {
-    return false;
-  }
+  if (match.status === "finished") return false;
 
-  if (match.predictionUnlocked === true) {
-    return true;
-  }
+  if (match.predictionUnlocked === true) return true;
 
-  if (match.status !== "upcoming") {
-    return false;
-  }
+  if (match.status !== "upcoming") return false;
 
   const now = new Date();
   const deadline = getPredictionDeadline(match.matchDate);
@@ -51,26 +46,33 @@ async function canUserSubmitPrediction(params: {
   return now < deadline;
 }
 
+/**
+ * ADMIN - ALL PREDICTIONS (MATCH SYNC FIXED)
+ */
 router.get(
   "/admin/predictions",
   requireAuth,
   requireAdmin,
   async (_req, res): Promise<void> => {
-    const predictions = await db
+    const rows = await db
       .select({
         id: predictionsTable.id,
         userId: predictionsTable.userId,
         userName: usersTable.name,
         userEmail: usersTable.email,
+
         matchId: predictionsTable.matchId,
+
         homeTeam: matchesTable.homeTeam,
         awayTeam: matchesTable.awayTeam,
         homeLogo: matchesTable.homeLogo,
         awayLogo: matchesTable.awayLogo,
         matchDate: matchesTable.matchDate,
         status: matchesTable.status,
+
         homeGoals: predictionsTable.homeGoals,
         awayGoals: predictionsTable.awayGoals,
+
         createdAt: predictionsTable.createdAt,
         updatedAt: predictionsTable.updatedAt,
       })
@@ -80,11 +82,30 @@ router.get(
       .orderBy(desc(predictionsTable.createdAt));
 
     res.json(
-      predictions.map((prediction) => ({
-        ...prediction,
-        matchDate: prediction.matchDate.toISOString(),
-        createdAt: prediction.createdAt.toISOString(),
-        updatedAt: prediction.updatedAt.toISOString(),
+      rows.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        userName: r.userName,
+        userEmail: r.userEmail,
+
+        matchId: r.matchId,
+
+        match: {
+          homeTeam: r.homeTeam,
+          awayTeam: r.awayTeam,
+          homeLogo: r.homeLogo,
+          awayLogo: r.awayLogo,
+          matchDate: r.matchDate.toISOString(),
+          status: r.status,
+        },
+
+        prediction: {
+          homeGoals: r.homeGoals,
+          awayGoals: r.awayGoals,
+        },
+
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
       }))
     );
   }
@@ -210,7 +231,7 @@ router.delete(
       return;
     }
 
-    let [existingPrediction] = await db
+    const [existingPrediction] = await db
       .select()
       .from(predictionsTable)
       .where(
@@ -219,18 +240,6 @@ router.delete(
           eq(predictionsTable.userId, userId)
         )
       );
-
-    if (!existingPrediction) {
-      [existingPrediction] = await db
-        .select()
-        .from(predictionsTable)
-        .where(
-          and(
-            eq(predictionsTable.matchId, id),
-            eq(predictionsTable.userId, userId)
-          )
-        );
-    }
 
     if (!existingPrediction) {
       res.status(404).json({ error: "Palpite não encontrado." });
@@ -281,7 +290,7 @@ router.get("/predictions/my", requireAuth, async (req, res): Promise<void> => {
     .from(predictionsTable)
     .where(eq(predictionsTable.userId, userId));
 
-  res.json(predictions.map((prediction) => toIsoPrediction(prediction)));
+  res.json(predictions.map((p) => toIsoPrediction(p)));
 });
 
 export default router;
